@@ -22,7 +22,8 @@ enum _StepState { pending, active, done }
 
 class LoadingScreen extends StatefulWidget {
   final String idea;
-  const LoadingScreen({super.key, required this.idea});
+  final String? category;
+  const LoadingScreen({super.key, required this.idea, this.category});
 
   @override
   State<LoadingScreen> createState() => _LoadingScreenState();

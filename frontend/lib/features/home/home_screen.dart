@@ -27,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen>
   AnimationController? _pulseController;
   String? _emptyInputError;
   String? _transcribeError;
+  String? _selectedCategory; // null = Auto-detect
 
   @override
   void initState() {
@@ -101,7 +102,69 @@ class _HomeScreenState extends State<HomeScreen>
     }
     setState(() => _emptyInputError = null);
     Navigator.push(
-        context, MaterialPageRoute(builder: (_) => LoadingScreen(idea: text)));
+        context, MaterialPageRoute(builder: (_) => LoadingScreen(idea: text, category: _selectedCategory)));
+  }
+
+  static const _categories = [
+    {'id': null, 'label': 'Auto', 'icon': LucideIcons.zap},
+    {'id': 'mobile_app', 'label': 'Mobile', 'icon': LucideIcons.smartphone},
+    {'id': 'hardware', 'label': 'Hardware', 'icon': LucideIcons.cpu},
+    {'id': 'fintech', 'label': 'FinTech', 'icon': LucideIcons.creditCard},
+    {'id': 'saas_web', 'label': 'SaaS/Web', 'icon': LucideIcons.monitor},
+  ];
+
+  Widget _buildCategorySelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 10),
+          child: Text('IDEA TYPE', style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w800,
+            letterSpacing: 1.8, color: RetroTheme.textMuted,
+          )),
+        ),
+        SizedBox(
+          height: 40,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: _categories.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final cat = _categories[i];
+              final isSelected = _selectedCategory == cat['id'];
+              return GestureDetector(
+                onTap: () => setState(() => _selectedCategory = cat['id'] as String?),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? RetroTheme.yellow : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected ? Colors.black : Colors.black38,
+                      width: isSelected ? 2.5 : 1.5,
+                    ),
+                    boxShadow: isSelected
+                        ? const [BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0)]
+                        : null,
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(cat['icon'] as IconData, size: 13, color: Colors.black),
+                    const SizedBox(width: 6),
+                    Text(cat['label'] as String, style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    )),
+                  ]),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 
   static const _samplePrompts = [
@@ -231,7 +294,12 @@ class _HomeScreenState extends State<HomeScreen>
                     // ── Hero section ──────────────────────────────────
                     _buildHero(context, isDesktop),
 
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
+
+                    // ── Category selector ─────────────────────────────
+                    _buildCategorySelector(),
+
+                    const SizedBox(height: 16),
 
                     // ── Input card ────────────────────────────────────
                     _buildInputCard(),
