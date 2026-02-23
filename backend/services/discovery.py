@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import re
 from typing import List, Dict, Any, Tuple
 from google import genai
 from pydantic import BaseModel, Field
@@ -80,11 +81,15 @@ Return up to 8 competitors as JSON array:
             temperature=0.2, tools=[types.Tool(google_search=types.GoogleSearch())],
         ),
     )
-    import json as _json, re
     match = re.search(r'\[.*\]', response.text, re.DOTALL)
     if not match:
+        logger.warning("No JSON array found in hardware discovery response. Response text: %s", response.text[:200])
         return [], []
-    competitors = _json.loads(match.group())
+    try:
+        competitors = json.loads(match.group())
+    except json.JSONDecodeError as e:
+        logger.warning("Failed to parse JSON from hardware discovery: %s", e)
+        return [], []
     metas = [{"app_id": c.get("url",""), "title": c.get("title",""), "score": 0.0,
                "icon": "", "platform": "hardware", "source": c.get("source","web"),
                "description": c.get("description",""), "funding_hint": c.get("funding_hint","")}
@@ -106,11 +111,15 @@ Return up to 8 competitors as JSON array:
             temperature=0.2, tools=[types.Tool(google_search=types.GoogleSearch())],
         ),
     )
-    import json as _json, re
     match = re.search(r'\[.*\]', response.text, re.DOTALL)
     if not match:
+        logger.warning("No JSON array found in saas discovery response. Response text: %s", response.text[:200])
         return [], []
-    competitors = _json.loads(match.group())
+    try:
+        competitors = json.loads(match.group())
+    except json.JSONDecodeError as e:
+        logger.warning("Failed to parse JSON from saas discovery: %s", e)
+        return [], []
     metas = [{"app_id": c.get("url",""), "title": c.get("title",""), "score": 0.0,
                "icon": "", "platform": "web", "source": c.get("source","web"),
                "description": c.get("description","")}
