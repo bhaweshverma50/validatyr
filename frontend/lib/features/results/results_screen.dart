@@ -284,6 +284,139 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
+  Widget _sectionLabel(String text, IconData icon) {
+    return Row(children: [
+      Icon(icon, size: 14, color: Colors.black54),
+      const SizedBox(width: 6),
+      Text(text, style: const TextStyle(
+          fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.5, color: Colors.black54)),
+    ]);
+  }
+
+  Widget _buildMarketSizingSection() {
+    final tam = widget.result['tam'] as String? ?? '';
+    final sam = widget.result['sam'] as String? ?? '';
+    final som = widget.result['som'] as String? ?? '';
+    if (tam.isEmpty && sam.isEmpty && som.isEmpty) return const SizedBox.shrink();
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionLabel('MARKET SIZING', LucideIcons.trendingUp),
+      const SizedBox(height: 10),
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _buildMarketCard('TAM', tam, RetroTheme.yellow),
+        const SizedBox(width: 8),
+        _buildMarketCard('SAM', sam, RetroTheme.mint),
+        const SizedBox(width: 8),
+        _buildMarketCard('SOM', som, RetroTheme.blue),
+      ]),
+    ]);
+  }
+
+  Widget _buildMarketCard(String label, String value, Color color) {
+    return Expanded(child: RetroCard(
+      backgroundColor: color,
+      padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        const SizedBox(height: 6),
+        Text(value.length > 80 ? '${value.substring(0, 80)}...' : value,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, height: 1.4)),
+      ]),
+    ));
+  }
+
+  Widget _buildRevenueModelsSection() {
+    final items = List<dynamic>.from(widget.result['revenue_model_options'] ?? []);
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionLabel('REVENUE MODELS', LucideIcons.dollarSign),
+      const SizedBox(height: 10),
+      _buildListSection('Revenue Models', LucideIcons.dollarSign, items, RetroTheme.lavender),
+    ]);
+  }
+
+  Widget _buildFundedCompetitorsSection() {
+    final items = List<dynamic>.from(widget.result['top_funded_competitors'] ?? []);
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionLabel('FUNDED COMPETITORS', LucideIcons.building2),
+      const SizedBox(height: 10),
+      RetroCard(
+        backgroundColor: RetroTheme.pink,
+        child: Column(children: items.asMap().entries.map((e) {
+          final c = e.value is Map ? Map<String, dynamic>.from(e.value as Map) : <String, dynamic>{};
+          return Padding(
+            padding: EdgeInsets.only(bottom: e.key < items.length - 1 ? 14 : 0),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.black, width: 2)),
+                child: Center(child: Text('${e.key + 1}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900))),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(c['name']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                if ((c['funding'] ?? '').toString().isNotEmpty || (c['investors'] ?? '').toString().isNotEmpty)
+                  Text('${c['funding'] ?? ''}${(c['investors'] ?? '').toString().isNotEmpty ? ' · ${c['investors']}' : ''}',
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: RetroTheme.textMuted)),
+              ])),
+            ]),
+          );
+        }).toList()),
+      ),
+    ]);
+  }
+
+  Widget _buildGTMSection() {
+    final gtm = widget.result['go_to_market_strategy'] as String? ?? '';
+    if (gtm.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionLabel('GO-TO-MARKET STRATEGY', LucideIcons.target),
+      const SizedBox(height: 10),
+      _buildTextSection('Go-To-Market Strategy', LucideIcons.target, gtm, RetroTheme.orange),
+    ]);
+  }
+
+  Widget _buildFundingLandscapeSection() {
+    final fl = widget.result['funding_landscape'] as String? ?? '';
+    if (fl.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionLabel('FUNDING LANDSCAPE', LucideIcons.trendingUp),
+      const SizedBox(height: 10),
+      _buildTextSection('Funding Landscape', LucideIcons.trendingUp, fl, RetroTheme.blue),
+    ]);
+  }
+
+  static const _categoryLabels = {
+    'mobile_app': 'Mobile App',
+    'hardware':   'Hardware',
+    'fintech':    'FinTech',
+    'saas_web':   'SaaS / Web',
+  };
+
+  Widget _buildCategoryBadge(String category, String subcategory) {
+    final label = _categoryLabels[category] ?? category;
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        margin: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.black, width: 2),
+          boxShadow: const [BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0)],
+        ),
+        child: Text(
+          subcategory.isNotEmpty ? '$label  ·  $subcategory' : label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
   Color _sourceColor(String source) {
     switch (source) {
       case 'product_hunt': return RetroTheme.pink;
@@ -392,6 +525,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
     final String targetOs = widget.result['target_os_recommendation']?.toString() ?? '';
     final List<dynamic> competitors = widget.result['competitors_analyzed'] ?? [];
     final List<dynamic> communitySignals = widget.result['community_signals'] ?? [];
+    final String category = widget.result['category'] as String? ?? '';
+    final String subcategory = widget.result['subcategory'] as String? ?? '';
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isWide = screenWidth > RetroTheme.tabletBreakpoint;
@@ -539,6 +674,8 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
                 const SizedBox(height: 20),
 
+                if (category.isNotEmpty) _buildCategoryBadge(category, subcategory),
+
                 // Hate / Love — side by side on wide, stacked on mobile
                 if (isWide)
                   Row(
@@ -568,6 +705,16 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   ),
                 ],
 
+                const SizedBox(height: 20),
+                _buildMarketSizingSection(),
+                const SizedBox(height: 20),
+                _buildRevenueModelsSection(),
+                const SizedBox(height: 20),
+                _buildFundedCompetitorsSection(),
+                const SizedBox(height: 20),
+                _buildGTMSection(),
+                const SizedBox(height: 20),
+                _buildFundingLandscapeSection(),
                 const SizedBox(height: 20),
 
                 // Pricing + Market side by side on wide
