@@ -150,6 +150,11 @@ class _LoadingScreenState extends State<LoadingScreen>
       await SupabaseService.insert(widget.idea, data);
     } catch (e) {
       debugPrint('Supabase save error (non-fatal): $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('History save failed: $e')),
+        );
+      }
     }
     if (!mounted) return;
     Navigator.pushReplacement(

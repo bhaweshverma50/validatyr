@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseService {
@@ -12,7 +13,7 @@ class SupabaseService {
   }
 
   static Future<void> insert(String idea, Map<String, dynamic> result) async {
-    await _client.from('validations').insert({
+    final corePayload = {
       'idea': idea,
       'opportunity_score': result['opportunity_score'] ?? 0,
       'score_breakdown': result['score_breakdown'] ?? {},
@@ -20,11 +21,15 @@ class SupabaseService {
       'what_users_hate': result['what_users_hate'] ?? [],
       'mvp_roadmap': result['mvp_roadmap'] ?? [],
       'pricing_suggestion': result['pricing_suggestion'] ?? '',
-      'target_os_recommendation': result['target_os_recommendation'] ?? result['target_platform_recommendation'] ?? '',
+      'target_os_recommendation':
+          result['target_os_recommendation'] ?? result['target_platform_recommendation'] ?? '',
       'market_breakdown': result['market_breakdown'] ?? '',
       'community_signals': result['community_signals'] ?? [],
       'competitors_analyzed': result['competitors_analyzed'] ?? [],
-      // New founder intel fields:
+    };
+
+    final fullPayload = {
+      ...corePayload,
       'category': result['category'] ?? 'mobile_app',
       'subcategory': result['subcategory'] ?? '',
       'tam': result['tam'] ?? '',
@@ -34,7 +39,15 @@ class SupabaseService {
       'top_funded_competitors': result['top_funded_competitors'] ?? [],
       'funding_landscape': result['funding_landscape'] ?? '',
       'go_to_market_strategy': result['go_to_market_strategy'] ?? '',
-    });
+    };
+
+    try {
+      await _client.from('validations').insert(fullPayload);
+    } catch (e) {
+      // New columns likely not migrated yet — fall back to core fields only
+      debugPrint('SupabaseService: full insert failed ($e), retrying with core fields only');
+      await _client.from('validations').insert(corePayload);
+    }
   }
 
   static Future<void> delete(dynamic id) async {
