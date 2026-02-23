@@ -9,6 +9,8 @@ import '../../services/api_service.dart';
 import '../loading/loading_screen.dart';
 import '../history/history_screen.dart';
 
+typedef _CategoryEntry = ({String? id, String label, IconData icon});
+
 class HomeScreen extends StatefulWidget {
   final String? initialIdea;
   const HomeScreen({super.key, this.initialIdea});
@@ -105,12 +107,12 @@ class _HomeScreenState extends State<HomeScreen>
         context, MaterialPageRoute(builder: (_) => LoadingScreen(idea: text, category: _selectedCategory)));
   }
 
-  static const _categories = [
-    {'id': null, 'label': 'Auto', 'icon': LucideIcons.zap},
-    {'id': 'mobile_app', 'label': 'Mobile', 'icon': LucideIcons.smartphone},
-    {'id': 'hardware', 'label': 'Hardware', 'icon': LucideIcons.cpu},
-    {'id': 'fintech', 'label': 'FinTech', 'icon': LucideIcons.creditCard},
-    {'id': 'saas_web', 'label': 'SaaS/Web', 'icon': LucideIcons.monitor},
+  static const List<_CategoryEntry> _categories = [
+    (id: null,          label: 'Auto',     icon: LucideIcons.zap),
+    (id: 'mobile_app',  label: 'Mobile',   icon: LucideIcons.smartphone),
+    (id: 'hardware',    label: 'Hardware',  icon: LucideIcons.cpu),
+    (id: 'fintech',     label: 'FinTech',   icon: LucideIcons.creditCard),
+    (id: 'saas_web',    label: 'SaaS/Web',  icon: LucideIcons.monitor),
   ];
 
   Widget _buildCategorySelector() {
@@ -133,9 +135,9 @@ class _HomeScreenState extends State<HomeScreen>
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (_, i) {
               final cat = _categories[i];
-              final isSelected = _selectedCategory == cat['id'];
+              final isSelected = _selectedCategory == cat.id;
               return GestureDetector(
-                onTap: () => setState(() => _selectedCategory = cat['id'] as String?),
+                onTap: () => setState(() => _selectedCategory = cat.id),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -151,9 +153,9 @@ class _HomeScreenState extends State<HomeScreen>
                         : null,
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(cat['icon'] as IconData, size: 13, color: Colors.black),
+                    Icon(cat.icon, size: 13, color: Colors.black),
                     const SizedBox(width: 6),
-                    Text(cat['label'] as String, style: TextStyle(
+                    Text(cat.label, style: TextStyle(
                       fontSize: 12,
                       fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                     )),
