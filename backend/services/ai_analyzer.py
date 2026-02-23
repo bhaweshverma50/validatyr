@@ -330,3 +330,74 @@ def run_analyst_agent(client: genai.Client, idea: str, researcher_data: Research
         ),
     )
     return AnalystOutput(**json.loads(response.text))
+
+
+def run_market_intelligence_agent(
+    client: genai.Client,
+    idea: str,
+    researcher_result: ResearcherOutput,
+    pm_result: PMOutput,
+    category: Literal["mobile_app", "hardware", "fintech", "saas_web"] = "mobile_app",
+) -> MarketIntelligenceOutput:
+    """Produce a Founder Intelligence Report with TAM/SAM/SOM, funded competitors, GTM strategy."""
+
+    category_context = {
+        "mobile_app": "consumer mobile app (App Store / Play Store)",
+        "hardware": "physical hardware product or IoT device",
+        "fintech": "financial technology product or service",
+        "saas_web": "web-based SaaS or developer tool",
+    }.get(category, "software product")
+
+    prompt = f"""You are producing a Founder Intelligence Report for a startup.
+
+Idea: "{idea}"
+Category: {category_context}
+Pain points found: {researcher_result.what_users_hate}
+What users love: {researcher_result.what_users_love}
+Community signals: {researcher_result.community_signals}
+Proposed MVP: {pm_result.mvp_roadmap}
+
+Use Google Search to research ALL of the following:
+
+MARKET SIZING — search "{idea} market size TAM 2024 2025 billion":
+  tam: "Total addressable market — cite a specific dollar figure + source year"
+  sam: "Serviceable segment your product can realistically address"
+  som: "Obtainable market in year 1-2 as a % of SAM with rationale"
+
+OPPORTUNITY SCORE (0-100, higher = better opportunity):
+  pain_severity (25%): intensity of user pain
+  market_gap (20%): how underserved the market is
+  mvp_feasibility (15%): how buildable in <3 months
+  competition_density (15%): 100=wide open, 0=monopoly
+  monetization_potential (10%): clarity of revenue path
+  community_demand (10%): vocal community need signal
+  startup_saturation (5%): 100=no VC players yet
+
+REVENUE MODELS — search "{idea} pricing model benchmark SaaS/app/hardware":
+  2-4 specific options with pricing benchmarks from comparable products
+  Format: "Freemium + Pro at $9.99/mo — standard in this category"
+
+FUNDED COMPETITORS — search "{idea} startup funding Crunchbase 2023 2024":
+  Up to 5: [{{"name": "...", "funding": "$5M Series A", "stage": "Series A", "investors": "a16z, YC"}}]
+
+FUNDING LANDSCAPE — search "{idea} VC investment trend 2024 2025":
+  2-3 sentences: Is space hot or cooling? Notable deals?
+
+GO-TO-MARKET — based on what works for competitors in {category_context}:
+  Top 2-3 GTM channels with brief rationale
+
+PRICING SUGGESTION: Specific recommendation with rationale
+PLATFORM RECOMMENDATION: iOS first vs Android vs cross-platform (or distribution channel for non-mobile)
+MARKET BREAKDOWN: 2-3 sentences on geography, customer type, B2B vs B2C segmentation"""
+
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.2,
+            response_mime_type="application/json",
+            response_schema=MarketIntelligenceOutput,
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        ),
+    )
+    return MarketIntelligenceOutput.model_validate_json(response.text)
