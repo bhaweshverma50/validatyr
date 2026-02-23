@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 class ResearcherOutput(BaseModel):
     what_users_love: List[str] = Field(description="Top 5 aspects users love across these competitors.")
     what_users_hate: List[str] = Field(description="Top 5 pain points and complaints users have with these competitors.")
+    community_signals: List[str] = Field(description="Top 5 notable quotes or insights found from Reddit threads, HackerNews discussions, Product Hunt comments, or Twitter/X conversations that reveal unmet needs or strong demand signals.")
 
 class PMOutput(BaseModel):
     mvp_roadmap: List[str] = Field(description="Day-1 MVP feature roadmap designed to solve the pain points identified by the researcher.")
@@ -120,23 +121,33 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
         pricing_suggestion=analyst_result.pricing_suggestion,
         target_os_recommendation=analyst_result.target_os_recommendation,
         market_breakdown=analyst_result.market_breakdown,
-        competitors_analyzed=competitors_meta or []
+        competitors_analyzed=competitors_meta or [],
+        community_signals=researcher_result.community_signals,
     )
 
 # --- Individual Agents ---
 
 def _run_researcher_agent(client: genai.Client, idea: str, reviews_text: str) -> ResearcherOutput:
     prompt = f"""
-    You are an expert App Market Researcher with access to Google Search.
+    You are an expert App Market Researcher with live access to Google Search.
     The user is building an app with this idea: "{idea}"
-    
-    Task:
-    1. Analyze the following recently scraped reviews from competitor apps.
-    2. USE GOOGLE SEARCH to actively find more opinions, Reddit threads, and blog reviews about these specific competitors to find deep pain points or missing features that aren't mentioned in the App Store.
-    
-    Strictly extract what users love and what users absolutely hate (the pain points) across all sources.
-    
-    SCRAPED REVIEWS:
+
+    Task — gather signal from ALL of the following sources:
+
+    1. SCRAPED APP STORE REVIEWS (provided below) — extract pain points and loves directly.
+    2. REDDIT — Search Reddit for threads in r/apps, r/startups, r/entrepreneur, r/SideProject, and any niche subreddits relevant to this idea. Look for complaints about existing tools, feature requests, and "is there an app that does X?" posts.
+    3. HACKERNEWS — Search HackerNews for "Ask HN" posts, Show HN launches, and comment threads discussing this problem space.
+    4. PRODUCT HUNT — Search Product Hunt for upvoted products in this category. Read the comments and reviews on those products.
+    5. TWITTER/X — Search Twitter/X for complaints, feature requests, and discussions about the competitor apps and the problem this idea solves.
+
+    Use Google Search actively for each of these sources. Do not rely only on the scraped reviews.
+
+    From all sources combined, extract:
+    - what_users_love: Top 5 things users consistently praise about existing solutions
+    - what_users_hate: Top 5 pain points, complaints, or unmet needs (be specific, quote where possible)
+    - community_signals: Top 5 notable quotes or insights from Reddit/HN/PH/Twitter that reveal strong demand, frustration, or opportunity (include the source platform)
+
+    SCRAPED APP STORE REVIEWS:
     {reviews_text}
     """
     from google.genai import types
