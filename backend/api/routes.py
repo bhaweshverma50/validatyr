@@ -8,6 +8,8 @@ from services.ai_analyzer import (
     run_researcher_agent,
     run_pm_agent,
     run_analyst_agent,
+    run_market_intelligence_agent,
+    detect_category,
     IdeaValidationResult,
     OpportunityScoreBreakdown,
 )
@@ -34,6 +36,7 @@ class ValidationRequest(BaseModel):
     app_store_id: Optional[int] = None
     app_store_name: Optional[str] = None
     model_provider: str = "gemini"
+    category: Optional[str] = None
 
 @router.post("/transcribe")
 async def transcribe_voice_memo(file: UploadFile = File(...)):
@@ -98,152 +101,189 @@ async def validate_idea_stream(request: ValidationRequest, req: Request):
     async def event_generator() -> AsyncGenerator[dict, None]:
         loop = asyncio.get_running_loop()
         idea = request.idea
+        user_category = request.category
+        total_steps = 5
 
         try:
-            # ── Step 1: Discovery ──────────────────────────────────────
-            yield {
-                "event": "status",
-                "data": _json.dumps({
-                    "agent": "Discovery Agent",
-                    "message": "Searching Play Store, App Store, Product Hunt & YC for competitors...",
-                    "step": 1, "total": 4,
-                }),
-            }
-
-            reviews, competitors_meta = await loop.run_in_executor(
-                _executor, discover_competitors_and_scrape, idea,
-            )
-
-            if not reviews:
-                yield {
-                    "event": "error",
-                    "data": _json.dumps({"message": "No competitors found. Try providing more detail about your idea."}),
-                }
-                return
-
-            yield {
-                "event": "status",
-                "data": _json.dumps({
-                    "agent": "Discovery Agent",
-                    "message": f"Found {len(competitors_meta)} competitors with {len(reviews)} reviews.",
-                    "step": 1, "total": 4,
-                }),
-            }
-
-            # ── Step 2: Researcher Agent ───────────────────────────────
-            yield {
-                "event": "status",
-                "data": _json.dumps({
-                    "agent": "Researcher Agent",
-                    "message": "Analyzing reviews + searching Reddit, HN, and Product Hunt...",
-                    "step": 2, "total": 4,
-                }),
-            }
-
             api_key = os.getenv("GEMINI_API_KEY")
             if not api_key:
                 raise ValueError("GEMINI_API_KEY not set.")
             client = _genai.Client(api_key=api_key)
 
+            # ── Step 1: Category Detection ────────────────────────────────
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Category Detector",
+                "message": "Classifying your idea..." if not user_category else f"Category set to {user_category}",
+                "step": 1, "total": total_steps,
+            })}
+
+            cat_result = await loop.run_in_executor(
+                _executor,
+                lambda: detect_category(client, idea, user_category),
+            )
+            category = cat_result.category
+            subcategory = cat_result.subcategory
+            category_labels = {
+                "mobile_app": "Mobile App",
+                "hardware": "Hardware",
+                "fintech": "FinTech",
+                "saas_web": "SaaS / Web",
+            }
+
+            yield {"event": "category", "data": _json.dumps({
+                "category": category,
+                "subcategory": subcategory,
+                "label": category_labels.get(category, "Software"),
+            })}
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Category Detector",
+                "message": f"Identified: {category_labels.get(category, category)} · {subcategory}",
+                "step": 1, "total": total_steps,
+            })}
+
+            # ── Step 2: Discovery ─────────────────────────────────────────
+            discovery_messages = {
+                "mobile_app": "Searching App Store, Play Store, Product Hunt & YC...",
+                "hardware": "Searching Kickstarter, Amazon, YC Hardware portfolio...",
+                "fintech": "Searching App Store, YC FinTech, CB Insights, Crunchbase...",
+                "saas_web": "Searching ProductHunt, G2, Capterra, YC SaaS portfolio...",
+            }
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Discovery Agent",
+                "message": discovery_messages.get(category, "Finding competitors..."),
+                "step": 2, "total": total_steps,
+            })}
+
+            reviews, competitors_meta = await loop.run_in_executor(
+                _executor,
+                lambda: discover_competitors_and_scrape(idea, category),
+            )
+
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Discovery Agent",
+                "message": f"Found {len(competitors_meta)} competitors.",
+                "step": 2, "total": total_steps,
+            })}
+
+            # ── Step 3: Researcher Agent ──────────────────────────────────
+            researcher_messages = {
+                "mobile_app": "Analyzing app reviews + Reddit, HN, Product Hunt...",
+                "hardware": "Researching manufacturing challenges, supply chain forums...",
+                "fintech": "Analyzing compliance landscape, FinTech communities...",
+                "saas_web": "Analyzing G2 reviews, churn patterns, SaaS communities...",
+            }
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Researcher Agent",
+                "message": researcher_messages.get(category, "Researching market..."),
+                "step": 3, "total": total_steps,
+            })}
+
             reviews_sample = reviews[:200]
-            reviews_text = _json.dumps([
-                {"rating": r["score"], "review": r["content"]} for r in reviews_sample
-            ])
+            if not reviews_sample and competitors_meta:
+                # Hardware/SaaS: pass competitor descriptions as research input
+                reviews_text = _json.dumps([
+                    {"title": c.get("title", ""), "description": c.get("description", "")}
+                    for c in competitors_meta[:20]
+                ])
+            else:
+                reviews_text = _json.dumps([
+                    {"rating": r["score"], "review": r["content"]} for r in reviews_sample
+                ])
 
             researcher_result = await loop.run_in_executor(
-                _executor, run_researcher_agent, client, idea, reviews_text,
+                _executor,
+                lambda: run_researcher_agent(client, idea, reviews_text, category),
             )
 
-            yield {
-                "event": "status",
-                "data": _json.dumps({
-                    "agent": "Researcher Agent",
-                    "message": f"Found {len(researcher_result.what_users_hate)} pain points and {len(researcher_result.community_signals)} community signals.",
-                    "step": 2, "total": 4,
-                }),
-            }
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Researcher Agent",
+                "message": f"Found {len(researcher_result.what_users_hate)} pain points, {len(researcher_result.community_signals)} community signals.",
+                "step": 3, "total": total_steps,
+            })}
 
-            # ── Step 3: PM Agent ──────────────────────────────────────
-            yield {
-                "event": "status",
-                "data": _json.dumps({
-                    "agent": "PM Agent",
-                    "message": "Building Day-1 MVP roadmap from pain points...",
-                    "step": 3, "total": 4,
-                }),
-            }
+            # ── Step 4: PM Agent ──────────────────────────────────────────
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "PM Agent",
+                "message": "Building Day-1 MVP roadmap from pain points...",
+                "step": 4, "total": total_steps,
+            })}
 
             pm_result = await loop.run_in_executor(
-                _executor, run_pm_agent, client, idea, researcher_result,
+                _executor,
+                lambda: run_pm_agent(client, idea, researcher_result),
             )
 
-            yield {
-                "event": "status",
-                "data": _json.dumps({
-                    "agent": "PM Agent",
-                    "message": f"MVP roadmap ready — {len(pm_result.mvp_roadmap)} features.",
-                    "step": 3, "total": 4,
-                }),
-            }
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "PM Agent",
+                "message": f"MVP roadmap ready — {len(pm_result.mvp_roadmap)} features.",
+                "step": 4, "total": total_steps,
+            })}
 
-            # ── Step 4: Analyst Agent ─────────────────────────────────
-            yield {
-                "event": "status",
-                "data": _json.dumps({
-                    "agent": "Analyst Agent",
-                    "message": "Scoring opportunity across 7 dimensions with Google Search...",
-                    "step": 4, "total": 4,
-                }),
-            }
+            # ── Step 5: Market Intelligence ───────────────────────────────
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Market Intelligence",
+                "message": "Researching TAM/SAM/SOM, funded competitors, GTM strategy...",
+                "step": 5, "total": total_steps,
+            })}
 
-            analyst_result = await loop.run_in_executor(
-                _executor, run_analyst_agent, client, idea, researcher_result, pm_result,
+            market_result = await loop.run_in_executor(
+                _executor,
+                lambda: run_market_intelligence_agent(client, idea, researcher_result, pm_result, category),
             )
 
-            # ── Assemble final result ─────────────────────────────────
-            breakdown = analyst_result.score_breakdown
+            # Compute weighted score
+            breakdown = market_result.score_breakdown
             weights = {
-                "pain_severity": 0.25, "market_gap": 0.20, "mvp_feasibility": 0.15,
-                "competition_density": 0.15, "monetization_potential": 0.10,
-                "community_demand": 0.10, "startup_saturation": 0.05,
+                "pain_severity": 0.25,
+                "market_gap": 0.20,
+                "mvp_feasibility": 0.15,
+                "competition_density": 0.15,
+                "monetization_potential": 0.10,
+                "community_demand": 0.10,
+                "startup_saturation": 0.05,
             }
-            opportunity_score = max(0, min(100, round(
-                breakdown.pain_severity * weights["pain_severity"]
-                + breakdown.market_gap * weights["market_gap"]
-                + breakdown.mvp_feasibility * weights["mvp_feasibility"]
-                + breakdown.competition_density * weights["competition_density"]
-                + breakdown.monetization_potential * weights["monetization_potential"]
-                + breakdown.community_demand * weights["community_demand"]
-                + breakdown.startup_saturation * weights["startup_saturation"]
-            )))
+            opportunity_score = max(0, min(100, round(sum(
+                getattr(breakdown, k) * v for k, v in weights.items()
+            ))))
+
+            # Convert FundedCompetitor objects to dicts for IdeaValidationResult
+            funded_competitors_dicts = [
+                fc.model_dump() if hasattr(fc, 'model_dump') else fc
+                for fc in market_result.top_funded_competitors
+            ]
 
             final_result = IdeaValidationResult(
+                category=category,
+                subcategory=subcategory,
                 opportunity_score=opportunity_score,
                 score_breakdown=breakdown.model_dump(),
                 what_users_love=researcher_result.what_users_love,
                 what_users_hate=researcher_result.what_users_hate,
                 mvp_roadmap=pm_result.mvp_roadmap,
-                pricing_suggestion=analyst_result.pricing_suggestion,
-                target_platform_recommendation=analyst_result.target_os_recommendation,
-                market_breakdown=analyst_result.market_breakdown,
+                pricing_suggestion=market_result.pricing_suggestion,
+                target_platform_recommendation=market_result.target_platform_recommendation,
+                market_breakdown=market_result.market_breakdown,
                 competitors_analyzed=competitors_meta or [],
                 community_signals=researcher_result.community_signals,
+                tam=market_result.tam,
+                sam=market_result.sam,
+                som=market_result.som,
+                revenue_model_options=market_result.revenue_model_options,
+                top_funded_competitors=funded_competitors_dicts,
+                funding_landscape=market_result.funding_landscape,
+                go_to_market_strategy=market_result.go_to_market_strategy,
             )
 
-            yield {
-                "event": "status",
-                "data": _json.dumps({
-                    "agent": "Analyst Agent",
-                    "message": f"Opportunity score: {opportunity_score}/100",
-                    "step": 4, "total": 4,
-                }),
-            }
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Market Intelligence",
+                "message": f"Score: {opportunity_score}/100 · TAM: {market_result.tam[:50]}",
+                "step": 5, "total": total_steps,
+            })}
 
-            # NOTE: Flutter handles DB save — no save_validation_result call here
             yield {"event": "result", "data": final_result.model_dump_json()}
 
         except Exception as e:
-            logger.error(f"SSE streaming error: {e}", exc_info=True)
+            logger.error(f"SSE error: {e}", exc_info=True)
             yield {"event": "error", "data": _json.dumps({"message": str(e)})}
 
     return EventSourceResponse(event_generator())
