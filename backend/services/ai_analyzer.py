@@ -22,6 +22,8 @@ class OpportunityScoreBreakdown(BaseModel):
     mvp_feasibility: int = Field(description="How realistic is the proposed MVP to build and ship quickly? (0-100)")
     competition_density: int = Field(description="How crowded is the market? Invert: 100 = wide open, 0 = saturated with strong players. (0-100)")
     monetization_potential: int = Field(description="How willing are users to pay based on the category and competitor pricing? (0-100)")
+    community_demand: int = Field(description="How much active community desire exists for this type of product on Reddit, HN, Product Hunt, and Twitter? 100 = loud vocal demand with many posts/requests, 0 = nobody is talking about this need. (0-100)")
+    startup_saturation: int = Field(description="Are well-funded startups already competing in this space? Inverted: 100 = no VC-backed players found, 0 = multiple well-funded startups already exist. (0-100)")
 
 class AnalystOutput(BaseModel):
     score_breakdown: OpportunityScoreBreakdown = Field(description="Individual dimension scores that feed into the weighted opportunity score.")
@@ -82,11 +84,13 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
     # Weighted opportunity score from individual dimensions
     breakdown = analyst_result.score_breakdown
     weights = {
-        "pain_severity": 0.30,
-        "market_gap": 0.25,
-        "mvp_feasibility": 0.20,
+        "pain_severity": 0.25,
+        "market_gap": 0.20,
+        "mvp_feasibility": 0.15,
         "competition_density": 0.15,
         "monetization_potential": 0.10,
+        "community_demand": 0.10,
+        "startup_saturation": 0.05,
     }
     opportunity_score = round(
         breakdown.pain_severity * weights["pain_severity"]
@@ -94,10 +98,18 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
         + breakdown.mvp_feasibility * weights["mvp_feasibility"]
         + breakdown.competition_density * weights["competition_density"]
         + breakdown.monetization_potential * weights["monetization_potential"]
+        + breakdown.community_demand * weights["community_demand"]
+        + breakdown.startup_saturation * weights["startup_saturation"]
     )
     opportunity_score = max(0, min(100, opportunity_score))
 
-    logger.info(f"Opportunity score: {opportunity_score} (pain={breakdown.pain_severity}, gap={breakdown.market_gap}, feasibility={breakdown.mvp_feasibility}, competition={breakdown.competition_density}, monetization={breakdown.monetization_potential})")
+    logger.info(
+        f"Opportunity score: {opportunity_score} "
+        f"(pain={breakdown.pain_severity}, gap={breakdown.market_gap}, "
+        f"feasibility={breakdown.mvp_feasibility}, competition={breakdown.competition_density}, "
+        f"monetization={breakdown.monetization_potential}, "
+        f"community={breakdown.community_demand}, startup_sat={breakdown.startup_saturation})"
+    )
 
     return IdeaValidationResult(
         opportunity_score=opportunity_score,
