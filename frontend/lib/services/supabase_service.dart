@@ -27,12 +27,12 @@ class SupabaseService {
     });
   }
 
-  static Future<void> delete(String id) async {
+  static Future<void> delete(dynamic id) async {
     await _client.from('validations').delete().eq('id', id);
   }
 
   static Future<void> deleteAll() async {
-    // .neq('id','') matches all UUID rows — Supabase requires a filter on DELETE
-    await _client.from('validations').delete().neq('id', '');
+    // bigserial IDs are always > 0 — use as filter to satisfy Supabase DELETE requirement
+    await _client.from('validations').delete().gte('id', 0);
   }
 }

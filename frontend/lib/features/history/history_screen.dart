@@ -79,7 +79,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return result ?? false;
   }
 
-  Future<void> _delete(String id) async {
+  Future<void> _delete(dynamic id) async {
     if (!await _confirm(
         title: 'Delete Validation',
         message: 'Permanently delete this result?')) {
@@ -216,7 +216,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildItem(Map<String, dynamic> item) {
-    final id = item['id'] as String? ?? '';
+    final id = item['id'];  // raw value (int from Supabase bigserial)
     final idea = item['idea'] as String? ?? '';
     final score = (item['opportunity_score'] as num?)?.toDouble() ?? 0;
     final scoreColor = RetroTheme.scoreColor(score);
