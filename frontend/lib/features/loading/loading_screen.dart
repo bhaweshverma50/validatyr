@@ -182,8 +182,13 @@ class _LoadingScreenState extends State<LoadingScreen>
                         .displayLarge
                         ?.copyWith(
                             color: RetroTheme.pink,
-                            shadows: RetroTheme.sharpShadow,
-                            fontSize: 38),
+                            shadows: const [
+                              Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+                              Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                              Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+                            ],
+                            fontSize: 44,
+                            height: 1.0),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
