@@ -544,8 +544,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
               children: [
                 // Score + Breakdown row on desktop, column on mobile
                 if (isWide && breakdown.isNotEmpty)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  IntrinsicHeight(
+                    child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Score gauge card
                       Expanded(
@@ -606,6 +607,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                         ),
                       ),
                     ],
+                  ),
                   )
                 else ...[
                   // Mobile: stacked
@@ -669,13 +671,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
                 // Hate / Love — side by side on wide, stacked on mobile
                 if (isWide)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildListSection('What Users Hate', LucideIcons.thumbsDown, hates, RetroTheme.pink)),
-                      const SizedBox(width: 20),
-                      Expanded(child: _buildListSection('What Users Love', LucideIcons.thumbsUp, loves, RetroTheme.mint)),
-                    ],
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _buildListSection('What Users Hate', LucideIcons.thumbsDown, hates, RetroTheme.pink)),
+                        const SizedBox(width: 20),
+                        Expanded(child: _buildListSection('What Users Love', LucideIcons.thumbsUp, loves, RetroTheme.mint)),
+                      ],
+                    ),
                   )
                 else ...[
                   _buildListSection('What Users Hate', LucideIcons.thumbsDown, hates, RetroTheme.pink),
@@ -722,13 +726,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
                 // Pricing + Market side by side on wide
                 if (isWide && pricing.isNotEmpty && marketBreakdown.isNotEmpty)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildTextSection('Pricing Strategy', LucideIcons.tag, pricing, RetroTheme.yellow)),
-                      const SizedBox(width: 20),
-                      Expanded(child: _buildTextSection('Market Breakdown', LucideIcons.pieChart, marketBreakdown, RetroTheme.blue)),
-                    ],
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _buildTextSection('Pricing Strategy', LucideIcons.tag, pricing, RetroTheme.yellow)),
+                        const SizedBox(width: 20),
+                        Expanded(child: _buildTextSection('Market Breakdown', LucideIcons.pieChart, marketBreakdown, RetroTheme.blue)),
+                      ],
+                    ),
                   )
                 else ...[
                   _buildTextSection('Pricing Strategy', LucideIcons.tag, pricing, RetroTheme.yellow),
