@@ -17,9 +17,9 @@ class SseEvent {
 class ApiService {
   static const Duration _connectionTimeout = Duration(seconds: 10);
 
-  static Stream<SseEvent> validateStream(String idea) {
+  static Stream<SseEvent> validateStream(String idea, {String? category}) {
     final controller = StreamController<SseEvent>();
-    _startSseStream(idea, controller).catchError((Object err) {
+    _startSseStream(idea, controller, category: category).catchError((Object err) {
       if (!controller.isClosed) {
         controller.add(SseEvent(event: 'error', data: {'message': err.toString()}));
         controller.close();
@@ -30,15 +30,19 @@ class ApiService {
 
   static Future<void> _startSseStream(
     String idea,
-    StreamController<SseEvent> controller,
-  ) async {
+    StreamController<SseEvent> controller, {
+    String? category,
+  }) async {
     final client = http.Client();
     try {
+      final payload = <String, dynamic>{'idea': idea};
+      if (category != null) payload['category'] = category;
+
       final request = http.Request('POST', Uri.parse('$_baseUrl/validate/stream'))
         ..headers['Content-Type'] = 'application/json'
         ..headers['Accept'] = 'text/event-stream'
         ..headers['Cache-Control'] = 'no-cache'
-        ..body = jsonEncode({'idea': idea});
+        ..body = jsonEncode(payload);
 
       final streamedResponse = await client.send(request).timeout(
         _connectionTimeout,

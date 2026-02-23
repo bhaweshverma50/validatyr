@@ -20,10 +20,20 @@ class SupabaseService {
       'what_users_hate': result['what_users_hate'] ?? [],
       'mvp_roadmap': result['mvp_roadmap'] ?? [],
       'pricing_suggestion': result['pricing_suggestion'] ?? '',
-      'target_os_recommendation': result['target_os_recommendation'] ?? '',
+      'target_os_recommendation': result['target_os_recommendation'] ?? result['target_platform_recommendation'] ?? '',
       'market_breakdown': result['market_breakdown'] ?? '',
       'community_signals': result['community_signals'] ?? [],
       'competitors_analyzed': result['competitors_analyzed'] ?? [],
+      // New founder intel fields:
+      'category': result['category'] ?? 'mobile_app',
+      'subcategory': result['subcategory'] ?? '',
+      'tam': result['tam'] ?? '',
+      'sam': result['sam'] ?? '',
+      'som': result['som'] ?? '',
+      'revenue_model_options': result['revenue_model_options'] ?? [],
+      'top_funded_competitors': result['top_funded_competitors'] ?? [],
+      'funding_landscape': result['funding_landscape'] ?? '',
+      'go_to_market_strategy': result['go_to_market_strategy'] ?? '',
     });
   }
 

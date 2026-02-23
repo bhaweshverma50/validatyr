@@ -86,8 +86,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   }
 
   void _startStream() {
-    // TODO(Task9): pass category: widget.category once ApiService.validateStream accepts it
-    _sub = ApiService.validateStream(widget.idea).listen(
+    _sub = ApiService.validateStream(widget.idea, category: widget.category).listen(
       _onEvent,
       onError: (e) => _setError(e.toString()),
       onDone: () {
