@@ -409,6 +409,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
+  Widget _buildTag(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+    );
+  }
+
   Color _sourceColor(String source) {
     switch (source) {
       case 'product_hunt': return RetroTheme.pink;
@@ -467,30 +478,20 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     ),
                     if (comp['platform'] != null) ...[
                       const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: comp['platform'] == 'ios' ? RetroTheme.blue : RetroTheme.mint,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          comp['platform'].toString().toUpperCase(),
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-                        ),
+                      _buildTag(
+                        comp['platform'].toString().toUpperCase(),
+                        comp['platform'] == 'ios' ? RetroTheme.blue : RetroTheme.mint,
                       ),
                     ],
-                    if (comp['source'] != null) ...[
+                    // Only show source badge when it's a distinct origin (PH, YC)
+                    // not when it merely repeats the platform (android/ios/web)
+                    if (comp['source'] != null &&
+                        !{'android', 'ios', 'web', 'hardware'}.contains(
+                            comp['source'].toString().toLowerCase())) ...[
                       const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: _sourceColor(comp['source'].toString()),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          _sourceBadgeLabel(comp['source'].toString()),
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
-                        ),
+                      _buildTag(
+                        _sourceBadgeLabel(comp['source'].toString()),
+                        _sourceColor(comp['source'].toString()),
                       ),
                     ],
                   ],
