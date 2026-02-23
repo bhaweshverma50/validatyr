@@ -152,7 +152,7 @@ class _LoadingScreenState extends State<LoadingScreen>
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => ResultsScreen(result: data),
+        builder: (_) => ResultsScreen(result: data, saveToHistory: false),
       ),
     );
   }
