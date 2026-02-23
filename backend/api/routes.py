@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional, AsyncGenerator
 from sse_starlette.sse import EventSourceResponse
@@ -7,7 +7,6 @@ from services.ai_analyzer import (
     analyze_reviews_multi_agent,
     run_researcher_agent,
     run_pm_agent,
-    run_analyst_agent,
     run_market_intelligence_agent,
     detect_category,
     IdeaValidationResult,
@@ -27,6 +26,27 @@ from google import genai as _genai
 logger = logging.getLogger(__name__)
 
 _executor = ThreadPoolExecutor(max_workers=4)
+
+_CATEGORY_LABELS = {
+    "mobile_app": "Mobile App",
+    "hardware": "Hardware",
+    "fintech": "FinTech",
+    "saas_web": "SaaS / Web",
+}
+
+_DISCOVERY_MESSAGES = {
+    "mobile_app": "Searching App Store, Play Store, Product Hunt & YC...",
+    "hardware": "Searching Kickstarter, Amazon, YC Hardware portfolio...",
+    "fintech": "Searching App Store, YC FinTech, CB Insights, Crunchbase...",
+    "saas_web": "Searching ProductHunt, G2, Capterra, YC SaaS portfolio...",
+}
+
+_RESEARCHER_MESSAGES = {
+    "mobile_app": "Analyzing app reviews + Reddit, HN, Product Hunt...",
+    "hardware": "Researching manufacturing challenges, supply chain forums...",
+    "fintech": "Analyzing compliance landscape, FinTech communities...",
+    "saas_web": "Analyzing G2 reviews, churn patterns, SaaS communities...",
+}
 
 router = APIRouter()
 
@@ -95,7 +115,7 @@ async def validate_idea(request: ValidationRequest):
         raise HTTPException(status_code=500, detail=f"Internal AI analysis error: {str(e)}")
 
 @router.post("/validate/stream")
-async def validate_idea_stream(request: ValidationRequest, req: Request):
+async def validate_idea_stream(request: ValidationRequest):
     """Streams SSE events for the full validation pipeline."""
 
     async def event_generator() -> AsyncGenerator[dict, None]:
@@ -123,34 +143,21 @@ async def validate_idea_stream(request: ValidationRequest, req: Request):
             )
             category = cat_result.category
             subcategory = cat_result.subcategory
-            category_labels = {
-                "mobile_app": "Mobile App",
-                "hardware": "Hardware",
-                "fintech": "FinTech",
-                "saas_web": "SaaS / Web",
-            }
-
             yield {"event": "category", "data": _json.dumps({
                 "category": category,
                 "subcategory": subcategory,
-                "label": category_labels.get(category, "Software"),
+                "label": _CATEGORY_LABELS.get(category, "Software"),
             })}
             yield {"event": "status", "data": _json.dumps({
                 "agent": "Category Detector",
-                "message": f"Identified: {category_labels.get(category, category)} · {subcategory}",
+                "message": f"Identified: {_CATEGORY_LABELS.get(category, category)} · {subcategory}",
                 "step": 1, "total": total_steps,
             })}
 
             # ── Step 2: Discovery ─────────────────────────────────────────
-            discovery_messages = {
-                "mobile_app": "Searching App Store, Play Store, Product Hunt & YC...",
-                "hardware": "Searching Kickstarter, Amazon, YC Hardware portfolio...",
-                "fintech": "Searching App Store, YC FinTech, CB Insights, Crunchbase...",
-                "saas_web": "Searching ProductHunt, G2, Capterra, YC SaaS portfolio...",
-            }
             yield {"event": "status", "data": _json.dumps({
                 "agent": "Discovery Agent",
-                "message": discovery_messages.get(category, "Finding competitors..."),
+                "message": _DISCOVERY_MESSAGES.get(category, "Finding competitors..."),
                 "step": 2, "total": total_steps,
             })}
 
@@ -165,16 +172,14 @@ async def validate_idea_stream(request: ValidationRequest, req: Request):
                 "step": 2, "total": total_steps,
             })}
 
+            if not reviews and not competitors_meta:
+                yield {"event": "error", "data": _json.dumps({"message": "No competitors found. Try adding more detail about your idea."})}
+                return
+
             # ── Step 3: Researcher Agent ──────────────────────────────────
-            researcher_messages = {
-                "mobile_app": "Analyzing app reviews + Reddit, HN, Product Hunt...",
-                "hardware": "Researching manufacturing challenges, supply chain forums...",
-                "fintech": "Analyzing compliance landscape, FinTech communities...",
-                "saas_web": "Analyzing G2 reviews, churn patterns, SaaS communities...",
-            }
             yield {"event": "status", "data": _json.dumps({
                 "agent": "Researcher Agent",
-                "message": researcher_messages.get(category, "Researching market..."),
+                "message": _RESEARCHER_MESSAGES.get(category, "Researching market..."),
                 "step": 3, "total": total_steps,
             })}
 
@@ -247,10 +252,7 @@ async def validate_idea_stream(request: ValidationRequest, req: Request):
             ))))
 
             # Convert FundedCompetitor objects to dicts for IdeaValidationResult
-            funded_competitors_dicts = [
-                fc.model_dump() if hasattr(fc, 'model_dump') else fc
-                for fc in market_result.top_funded_competitors
-            ]
+            funded_competitors_dicts = [fc.model_dump() for fc in market_result.top_funded_competitors]
 
             final_result = IdeaValidationResult(
                 category=category,
@@ -276,7 +278,7 @@ async def validate_idea_stream(request: ValidationRequest, req: Request):
 
             yield {"event": "status", "data": _json.dumps({
                 "agent": "Market Intelligence",
-                "message": f"Score: {opportunity_score}/100 · TAM: {market_result.tam[:50]}",
+                "message": f"Score: {opportunity_score}/100 · TAM: {(market_result.tam or '')[:50]}",
                 "step": 5, "total": total_steps,
             })}
 
