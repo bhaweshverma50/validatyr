@@ -59,13 +59,13 @@ class _LoadingScreenState extends State<LoadingScreen>
     _progressAnim = Tween<double>(begin: 0, end: 0).animate(
       CurvedAnimation(parent: _progressCtrl, curve: Curves.easeInOut),
     );
-    _startStream();
     // Seed the first step: Category Detector
     _stepNames.add('Category Detector');
     _stepMessages.add(widget.category != null
         ? 'Category: ${_categoryLabels[widget.category] ?? widget.category}'
         : 'Classifying your idea...');
     _stepStates.add(_StepState.active);
+    _startStream();
   }
 
   @override
@@ -113,8 +113,8 @@ class _LoadingScreenState extends State<LoadingScreen>
         _totalSteps = total;
         // Grow lists dynamically to accommodate stepIdx
         while (_stepNames.length <= stepIdx) {
-          _stepNames.add(agentName);
-          _stepMessages.add(msg);
+          _stepNames.add('');
+          _stepMessages.add('');
           _stepStates.add(_StepState.pending);
         }
         _stepNames[stepIdx] = agentName;
