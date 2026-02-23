@@ -191,6 +191,10 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
 # --- Individual Agents ---
 
 def _researcher_prompt(idea: str, reviews_text: str, category: str) -> str:
+    """Build a category-specific researcher prompt for the Gemini researcher agent.
+
+    Routes to hardware, fintech, saas_web, or mobile_app (default) prompt templates.
+    """
     base = f'Startup idea: "{idea}"\n\n'
 
     if category == "hardware":
@@ -233,6 +237,9 @@ Search and analyze:
 Return JSON: {{"what_users_love": [5 positives], "what_users_hate": [5 pain points / churn drivers], "community_signals": [5 SaaS-specific market insights]}}"""
 
     # Default: mobile_app
+    if category not in ("mobile_app", "hardware", "fintech", "saas_web"):
+        logger.warning("Unknown category '%s' in _researcher_prompt — using mobile_app defaults", category)
+
     return base + f"""You are an expert App Market Researcher with live access to Google Search.
 
 Task — gather signal from ALL of the following sources:
@@ -254,7 +261,7 @@ SCRAPED APP STORE REVIEWS:
 {reviews_text}"""
 
 
-def run_researcher_agent(client: genai.Client, idea: str, reviews_text: str, category: str = "mobile_app") -> ResearcherOutput:
+def run_researcher_agent(client: genai.Client, idea: str, reviews_text: str, category: Literal["mobile_app", "hardware", "fintech", "saas_web"] = "mobile_app") -> ResearcherOutput:
     prompt = _researcher_prompt(idea, reviews_text, category)
     response = client.models.generate_content(
         model='gemini-3-flash-preview',
