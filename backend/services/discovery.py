@@ -13,6 +13,59 @@ logger = logging.getLogger(__name__)
 class SearchQueryOutput(BaseModel):
     query: str = Field(description="A short 3-5 word search query to find competitors.")
 
+class StartupCompetitor(BaseModel):
+    title: str = Field(description="Name of the startup or product.")
+    url: str = Field(description="URL of the Product Hunt launch, YC page, or website.")
+    source: str = Field(description="Where this was found: 'product_hunt', 'ycombinator', or 'web'.")
+    description: str = Field(description="One sentence description of what this product does.")
+
+class StartupDiscoveryOutput(BaseModel):
+    startups: List[StartupCompetitor] = Field(description="Up to 6 relevant startups or products found from Product Hunt, YCombinator, and the broader web.")
+
+def _discover_web_startups(client: genai.Client, idea: str, query: str) -> List[Dict[str, Any]]:
+    """Uses Gemini Google Search grounding to find relevant startups on Product Hunt, YC, and HN."""
+    from google.genai import types
+
+    prompt = f"""
+    You are a startup market researcher. The user has this app idea: "{idea}"
+    The core search query for this space is: "{query}"
+
+    Use Google Search to find up to 6 relevant competing products or startups from these sources:
+    1. Product Hunt — search for "{query} site:producthunt.com" to find launched products
+    2. YCombinator — search for "{query} site:ycombinator.com" to find YC-funded startups
+    3. HackerNews Show HN — search for "Show HN {query}" to find indie launches
+    4. Broader web — any notable startups or indie products solving the same problem
+
+    For each, return: title, url, source (product_hunt/ycombinator/web), and a one-sentence description.
+    Only include products that are genuinely relevant to the idea. Skip vague matches.
+    Return an empty list if nothing relevant is found.
+    """
+
+    response = client.models.generate_content(
+        model='gemini-3-flash-preview',
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=StartupDiscoveryOutput,
+            temperature=0.2,
+            tools=[{"google_search": {}}]
+        ),
+    )
+
+    result = StartupDiscoveryOutput(**json.loads(response.text))
+
+    return [
+        {
+            "app_id": s.url,
+            "title": s.title,
+            "score": 0.0,
+            "icon": "",
+            "platform": "web",
+            "source": s.source,
+        }
+        for s in result.startups
+    ]
+
 def discover_competitors_and_scrape(app_idea: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Agent 0: Discovery Agent.
@@ -71,7 +124,8 @@ def discover_competitors_and_scrape(app_idea: str) -> Tuple[List[Dict[str, Any]]
                 "title": app_title,
                 "score": app_score,
                 "icon": app_icon,
-                "platform": "android"
+                "platform": "android",
+                "source": "play_store",
             })
             
             reviews = scrape_play_store_reviews(app_id, count=100)
@@ -102,7 +156,8 @@ def discover_competitors_and_scrape(app_idea: str) -> Tuple[List[Dict[str, Any]]
                     "title": app_title,
                     "score": app_score,
                     "icon": app_icon,
-                    "platform": "ios"
+                    "platform": "ios",
+                    "source": "app_store",
                 })
                 
                 # App Store scraper needs the bundle ID as the app_name string, and numeric trackId
@@ -110,7 +165,16 @@ def discover_competitors_and_scrape(app_idea: str) -> Tuple[List[Dict[str, Any]]
                 all_reviews.extend(reviews)
         except Exception as e:
             logger.error(f"Error searching iTunes API for iOS apps: {e}")
-            
+
+        # --- WEB / STARTUP DISCOVERY (Product Hunt, YC, HN) ---
+        logger.info("Searching Product Hunt, YCombinator, and HN for startup competitors...")
+        try:
+            web_startups = _discover_web_startups(client, app_idea, query)
+            competitors_list.extend(web_startups)
+            logger.info(f"Found {len(web_startups)} web/startup competitors.")
+        except Exception as e:
+            logger.error(f"Error during web startup discovery: {e}")
+
         return all_reviews, competitors_list
     
     except Exception as e:
