@@ -56,6 +56,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   late final AnimationController _progressCtrl;
   late Animation<double> _progressAnim;
   bool _hasError = false;
+  bool _hasResult = false;
   String _errorMessage = '';
 
   @override
@@ -93,7 +94,7 @@ class _LoadingScreenState extends State<LoadingScreen>
       _onEvent,
       onError: (e) => _setError(e.toString()),
       onDone: () {
-        if (mounted && !_hasError) {
+        if (mounted && !_hasError && !_hasResult) {
           _setError(
               'Connection closed unexpectedly. Please try again.');
         }
@@ -122,6 +123,7 @@ class _LoadingScreenState extends State<LoadingScreen>
         for (int i = 0; i < _stepStates.length; i++) {
           _stepStates[i] = _StepState.done;
         }
+        _hasResult = true;
       });
       _animateTo(1.0);
       _saveAndNavigate(event.data);
@@ -139,6 +141,8 @@ class _LoadingScreenState extends State<LoadingScreen>
   }
 
   Future<void> _saveAndNavigate(Map<String, dynamic> data) async {
+    // Brief delay so the progress bar animation reaches 100% visually
+    await Future.delayed(const Duration(milliseconds: 400));
     try {
       await SupabaseService.insert(widget.idea, data);
     } catch (e) {
