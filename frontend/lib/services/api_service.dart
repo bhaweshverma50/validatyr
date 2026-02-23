@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-const String _baseUrl = 'http://127.0.0.1:8000/api/v1';
+String get _baseUrl {
+  final host = dotenv.env['BACKEND_HOST'] ?? '127.0.0.1';
+  return 'http://$host:8000/api/v1';
+}
 
 class SseEvent {
   final String event;
