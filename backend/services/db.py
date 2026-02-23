@@ -32,6 +32,8 @@ def save_validation_result(idea: str, result: dict) -> dict:
         "target_os_recommendation": result.get("target_os_recommendation", ""),
         "market_breakdown": result.get("market_breakdown", ""),
         "score_breakdown": result.get("score_breakdown", {}),
+        "community_signals": result.get("community_signals", []),
+        "competitors_analyzed": result.get("competitors_analyzed", []),
     }
     
     if not supabase:
