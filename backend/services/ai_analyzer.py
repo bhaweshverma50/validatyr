@@ -37,6 +37,7 @@ class CompetitorInfo(BaseModel):
     score: float
     icon: str
     platform: str
+    source: str = "app_store"  # play_store | app_store | product_hunt | ycombinator | web
 
 class IdeaValidationResult(BaseModel):
     opportunity_score: int
@@ -48,6 +49,7 @@ class IdeaValidationResult(BaseModel):
     target_os_recommendation: str
     market_breakdown: str
     competitors_analyzed: List[CompetitorInfo] = []
+    community_signals: List[str] = []  # Notable Reddit/HN/PH/Twitter insights
 
 # --- Multi-Agent Orchestrator ---
 
