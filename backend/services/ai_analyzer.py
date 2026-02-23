@@ -3,9 +3,45 @@ import json
 import logging
 from typing import List, Dict, Any
 from google import genai
+from google.genai import types
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+class CategoryDetectionOutput(BaseModel):
+    category: str  # "mobile_app" | "hardware" | "fintech" | "saas_web"
+    subcategory: str  # e.g. "ios_only", "cross_platform", "payments", "B2B SaaS", "wearables"
+    rationale: str
+
+def detect_category(client, idea: str, user_category: str | None = None) -> CategoryDetectionOutput:
+    """If user_category is valid, skip LLM and return it directly."""
+    valid = ("mobile_app", "hardware", "fintech", "saas_web")
+    if user_category and user_category in valid:
+        defaults = {"mobile_app": "cross_platform", "hardware": "consumer hardware",
+                    "fintech": "payments", "saas_web": "B2B SaaS"}
+        return CategoryDetectionOutput(
+            category=user_category, subcategory=defaults[user_category], rationale="User-selected"
+        )
+    prompt = f"""Classify this startup idea into exactly ONE category:
+Idea: "{idea}"
+Categories:
+- "mobile_app": consumer app via App Store / Play Store
+- "hardware": physical product, IoT, wearable, robotics
+- "fintech": payments, lending, crypto, insurance tech, banking
+- "saas_web": web-based B2B/B2C software, API, developer tool
+
+Also provide a short subcategory (e.g. "ios_only", "cross_platform", "payments", "wearables", "B2B SaaS").
+Output JSON: {{"category": "...", "subcategory": "...", "rationale": "..."}}"""
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.1,
+            response_mime_type="application/json",
+            response_schema=CategoryDetectionOutput,
+        ),
+    )
+    return CategoryDetectionOutput.model_validate_json(response.text)
 
 # --- Agent Output Schemas ---
 
@@ -32,6 +68,19 @@ class AnalystOutput(BaseModel):
     target_os_recommendation: str = Field(description="Recommendation on which OS (iOS, Android, Mac, Windows, Web) to target first and why, based on competitor presence and app type.")
     market_breakdown: str = Field(description="A short analysis of the market split and user behaviors on iOS vs Android for this specific idea.")
 
+class MarketIntelligenceOutput(BaseModel):
+    score_breakdown: OpportunityScoreBreakdown
+    pricing_suggestion: str
+    target_platform_recommendation: str
+    market_breakdown: str
+    tam: str                              # e.g. "$4.2B global market for X by 2026"
+    sam: str                              # serviceable addressable segment
+    som: str                              # realistically obtainable year 1-2
+    revenue_model_options: List[str]      # 2-4 options with pricing benchmarks
+    top_funded_competitors: List[dict]    # [{"name": ..., "funding": ..., "investors": ...}]
+    funding_landscape: str               # 2-3 sentence VC narrative
+    go_to_market_strategy: str           # 2-3 top GTM channels for this category
+
 # --- Final Aggregated Output ---
 
 class CompetitorInfo(BaseModel):
@@ -49,10 +98,23 @@ class IdeaValidationResult(BaseModel):
     what_users_hate: List[str]
     mvp_roadmap: List[str]
     pricing_suggestion: str
-    target_os_recommendation: str
+    target_platform_recommendation: str = ""
     market_breakdown: str
-    competitors_analyzed: List[CompetitorInfo] = []
+    competitors_analyzed: List[dict] = []
     community_signals: List[str] = []  # Notable Reddit/HN/PH/Twitter insights
+    category: str = "mobile_app"
+    subcategory: str = ""
+    tam: str = ""
+    sam: str = ""
+    som: str = ""
+    revenue_model_options: List[str] = []
+    top_funded_competitors: List[dict] = []
+    funding_landscape: str = ""
+    go_to_market_strategy: str = ""
+
+    @property
+    def target_os_recommendation(self) -> str:
+        return self.target_platform_recommendation
 
 # --- Multi-Agent Orchestrator ---
 
@@ -119,7 +181,7 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
         what_users_hate=researcher_result.what_users_hate,
         mvp_roadmap=pm_result.mvp_roadmap,
         pricing_suggestion=analyst_result.pricing_suggestion,
-        target_os_recommendation=analyst_result.target_os_recommendation,
+        target_platform_recommendation=analyst_result.target_os_recommendation,
         market_breakdown=analyst_result.market_breakdown,
         competitors_analyzed=competitors_meta or [],
         community_signals=researcher_result.community_signals,
@@ -150,7 +212,6 @@ def run_researcher_agent(client: genai.Client, idea: str, reviews_text: str) -> 
     SCRAPED APP STORE REVIEWS:
     {reviews_text}
     """
-    from google.genai import types
     response = client.models.generate_content(
         model='gemini-3-flash-preview',
         contents=prompt,
@@ -207,7 +268,6 @@ def run_analyst_agent(client: genai.Client, idea: str, researcher_data: Research
     Task 3: Provide a 'market_breakdown' comparing typical iOS vs Android user behaviors for this specific app category.
     Task 4: Give a definite 'target_os_recommendation' for which platform to target first for MVP launch and why.
     """
-    from google.genai import types
     response = client.models.generate_content(
         model='gemini-3-flash-preview',
         contents=prompt,
