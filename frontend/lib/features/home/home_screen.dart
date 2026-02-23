@@ -95,8 +95,8 @@ class _HomeScreenState extends State<HomeScreen>
   void _validateIdea() {
     final text = _ideaController.text.trim();
     if (text.isEmpty) {
-      setState(
-          () => _emptyInputError = 'Please enter your app idea before validating.');
+      setState(() =>
+          _emptyInputError = 'Please enter your app idea before validating.');
       return;
     }
     setState(() => _emptyInputError = null);
@@ -104,20 +104,104 @@ class _HomeScreenState extends State<HomeScreen>
         context, MaterialPageRoute(builder: (_) => LoadingScreen(idea: text)));
   }
 
+  static const _samplePrompts = [
+    '🐕 A social network for dog owners to arrange playdates',
+    '💤 An app that detects and improves your sleep quality using mic',
+    '🧾 AI receipt scanner that auto-splits bills between friends',
+    '🌱 A habit tracker that donates to charity when you hit streaks',
+    '🎙️ Podcast summariser that turns episodes into 60-second briefs',
+    '🚗 An app to find and share cheap parking spots in real time',
+  ];
+
+  Widget _buildSamplePrompts() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, bottom: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 18,
+                height: 2,
+                color: RetroTheme.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'OR TRY AN EXAMPLE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.8,
+                  color: RetroTheme.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 40,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(right: 8),
+            itemCount: _samplePrompts.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (_, i) {
+              final prompt = _samplePrompts[i];
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _ideaController.text = prompt.substring(2).trim();
+                    _emptyInputError = null;
+                  });
+                },
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.black, width: 2),
+                    boxShadow: const [
+                      BoxShadow(
+                          color: Colors.black,
+                          offset: Offset(2, 2),
+                          blurRadius: 0),
+                    ],
+                  ),
+                  child: Text(
+                    prompt,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
     final isDesktop = screenWidth > RetroTheme.mobileBreakpoint;
-    final horizontalPadding = isDesktop ? 48.0 : 20.0;
+    final horizontalPadding = isDesktop ? 48.0 : 24.0;
 
     return Scaffold(
+      backgroundColor: RetroTheme.background,
       appBar: AppBar(
         backgroundColor: RetroTheme.background,
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: const Icon(LucideIcons.history, color: Colors.black, size: 26),
+            icon: const Icon(LucideIcons.history, color: Colors.black, size: 22),
             tooltip: 'History',
             onPressed: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const HistoryScreen())),
@@ -131,191 +215,318 @@ class _HomeScreenState extends State<HomeScreen>
             constraints:
                 const BoxConstraints(maxWidth: RetroTheme.desktopMaxWidth),
             child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
               padding: EdgeInsets.symmetric(
-                  horizontal: horizontalPadding, vertical: 32.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(height: isDesktop ? 32 : 16),
-                  Text(
-                    'VALIDATYR.',
-                    style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                        color: RetroTheme.pink,
-                        shadows: RetroTheme.sharpShadow,
-                        fontSize: isDesktop ? 56 : 42),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Dump your app idea below.\nWe let AI analyze the market and tell you if it sucks.',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontSize: isDesktop ? 18 : 16, height: 1.5),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 40),
-                  RetroCard(
-                    backgroundColor: RetroTheme.mint,
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_isRecording && _pulseController != null)
-                            AnimatedBuilder(
-                              animation: _pulseController!,
-                              builder: (_, __) => Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: Color.lerp(
-                                      RetroTheme.pink,
-                                      RetroTheme.pink.withAlpha(150),
-                                      _pulseController!.value),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                      color: Colors.black, width: 2),
-                                ),
-                                child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(LucideIcons.circle,
-                                          color: Colors.red, size: 10),
-                                      SizedBox(width: 8),
-                                      Text('Recording... Tap mic to stop',
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 14)),
-                                    ]),
-                              ),
-                            ),
-                          Stack(children: [
-                            TextField(
-                              controller: _ideaController,
-                              maxLines: 5,
-                              enabled: !_isRecording,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600, fontSize: 16),
-                              onChanged: (_) {
-                                if (_emptyInputError != null) {
-                                  setState(() => _emptyInputError = null);
-                                }
-                              },
-                              decoration: InputDecoration(
-                                hintText: 'e.g. A social network for dogs...',
-                                contentPadding: const EdgeInsets.only(
-                                    left: 20, right: 60, top: 20, bottom: 20),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide(
-                                      color: _emptyInputError != null
-                                          ? Colors.red
-                                          : Colors.black,
-                                      width: 3),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 12,
-                              right: 12,
-                              child: MouseRegion(
-                                cursor: SystemMouseCursors.click,
-                                child: GestureDetector(
-                                  onTap:
-                                      _isLoading ? null : _toggleRecording,
-                                  child: AnimatedContainer(
-                                    duration:
-                                        const Duration(milliseconds: 150),
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: _isRecording
-                                          ? RetroTheme.pink
-                                          : RetroTheme.yellow,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                          color: Colors.black, width: 3),
-                                      boxShadow: _isRecording
-                                          ? []
-                                          : const [
-                                              BoxShadow(
-                                                  color: Colors.black,
-                                                  offset: Offset(2, 2),
-                                                  blurRadius: 0)
-                                            ],
-                                    ),
-                                    child: Icon(
-                                        _isRecording
-                                            ? LucideIcons.square
-                                            : LucideIcons.mic,
-                                        color: Colors.black,
-                                        size: 24),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ]),
-                          if (_emptyInputError != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Row(children: [
-                                const Icon(LucideIcons.alertCircle,
-                                    size: 14, color: Colors.red),
-                                const SizedBox(width: 6),
-                                Text(_emptyInputError!,
-                                    style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.red)),
-                              ]),
-                            ),
-                          const SizedBox(height: 20),
-                          RetroButton(
-                            text: 'Validate Idea',
-                            color: RetroTheme.yellow,
-                            isLoading: _isLoading,
-                            onPressed: _validateIdea,
-                            icon: _isLoading
-                                ? null
-                                : const Icon(LucideIcons.zap,
-                                    color: Colors.black, size: 20),
-                          ),
-                          if (_transcribeError != null)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: RetroTheme.pink.withAlpha(180),
-                                  borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(
-                                      color: Colors.red, width: 2),
-                                ),
-                                child: Row(children: [
-                                  const Icon(LucideIcons.alertTriangle,
-                                      size: 14, color: Colors.red),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                      child: Text(_transcribeError!,
-                                          style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                              color: Colors.red))),
-                                ]),
-                              ),
-                            ),
-                        ]),
-                  ),
-                  const SizedBox(height: 32),
-                  Text(
-                    'We scrape real competitor reviews, run 4 AI agents, and give you a data-backed score.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: RetroTheme.textMuted, fontSize: 13),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                  horizontal: horizontalPadding, vertical: 0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: screenHeight - kToolbarHeight - 80,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(height: isDesktop ? 24 : 12),
+
+                    // ── Hero section ──────────────────────────────────
+                    _buildHero(context, isDesktop),
+
+                    const SizedBox(height: 28),
+
+                    // ── Input card ────────────────────────────────────
+                    _buildInputCard(),
+
+                    const SizedBox(height: 24),
+
+                    // ── Sample prompts ────────────────────────────────
+                    _buildSamplePrompts(),
+
+                    const SizedBox(height: 32),
+
+                    // ── Footer ────────────────────────────────────────
+                    _buildFooter(context),
+
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildHero(BuildContext context, bool isDesktop) {
+    return Column(
+      children: [
+        // Badge
+        Center(
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: RetroTheme.yellow,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.black, width: 2),
+              boxShadow: const [
+                BoxShadow(
+                    color: Colors.black,
+                    offset: Offset(2, 2),
+                    blurRadius: 0),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.zap, size: 12, color: Colors.black),
+                SizedBox(width: 5),
+                Text(
+                  'AI-POWERED IDEA VALIDATION',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
+                    color: Colors.black,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Title — multi-step extrusion shadow (no gap between text and shadow)
+        Text(
+          'VALIDATYR.',
+          style: Theme.of(context).textTheme.displayLarge?.copyWith(
+              color: RetroTheme.pink,
+              shadows: const [
+                Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+                Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+                Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+              ],
+              fontSize: isDesktop ? 56 : 44,
+              height: 1.0),
+          textAlign: TextAlign.center,
+        ),
+
+        const SizedBox(height: 12),
+
+        // Subtitle
+        Text(
+          'Describe your app idea.\nGet a data-backed market report in 60 seconds.',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontSize: isDesktop ? 17 : 15,
+              height: 1.55,
+              color: RetroTheme.textMuted),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInputCard() {
+    return RetroCard(
+      backgroundColor: RetroTheme.mint,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Recording indicator
+          if (_isRecording && _pulseController != null)
+            AnimatedBuilder(
+              animation: _pulseController!,
+              builder: (_, __) => Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Color.lerp(RetroTheme.pink,
+                      RetroTheme.pink.withAlpha(150), _pulseController!.value),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.black, width: 2),
+                ),
+                child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.circle, color: Colors.red, size: 10),
+                      SizedBox(width: 8),
+                      Text('Recording... Tap mic to stop',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13)),
+                    ]),
+              ),
+            ),
+
+          // Text field + mic
+          Stack(children: [
+            TextField(
+              controller: _ideaController,
+              maxLines: 5,
+              enabled: !_isRecording,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+              onChanged: (_) {
+                if (_emptyInputError != null) {
+                  setState(() => _emptyInputError = null);
+                }
+              },
+              decoration: InputDecoration(
+                hintText: 'e.g. A social network for dog owners...',
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.only(
+                    left: 16, right: 56, top: 16, bottom: 16),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(
+                      color: _emptyInputError != null
+                          ? Colors.red
+                          : Colors.black,
+                      width: 2.5),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide:
+                      const BorderSide(color: Colors.black, width: 3),
+                ),
+                disabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide:
+                      const BorderSide(color: Colors.black38, width: 2),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 10,
+              right: 10,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: _isLoading ? null : _toggleRecording,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: _isRecording
+                          ? RetroTheme.pink
+                          : RetroTheme.yellow,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.black, width: 2.5),
+                      boxShadow: _isRecording
+                          ? []
+                          : const [
+                              BoxShadow(
+                                  color: Colors.black,
+                                  offset: Offset(2, 2),
+                                  blurRadius: 0)
+                            ],
+                    ),
+                    child: Icon(
+                        _isRecording ? LucideIcons.square : LucideIcons.mic,
+                        color: Colors.black,
+                        size: 20),
+                  ),
+                ),
+              ),
+            ),
+          ]),
+
+          // Empty input error
+          if (_emptyInputError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(children: [
+                const Icon(LucideIcons.alertCircle,
+                    size: 13, color: Colors.red),
+                const SizedBox(width: 6),
+                Text(_emptyInputError!,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.red)),
+              ]),
+            ),
+
+          const SizedBox(height: 16),
+
+          // Validate button
+          RetroButton(
+            text: 'Validate My Idea',
+            color: RetroTheme.yellow,
+            isLoading: _isLoading,
+            onPressed: _validateIdea,
+            icon: _isLoading
+                ? null
+                : const Icon(LucideIcons.zap, color: Colors.black, size: 18),
+          ),
+
+          // Transcribe error
+          if (_transcribeError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: RetroTheme.pink.withAlpha(180),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.red, width: 2),
+                ),
+                child: Row(children: [
+                  const Icon(LucideIcons.alertTriangle,
+                      size: 13, color: Colors.red),
+                  const SizedBox(width: 8),
+                  Expanded(
+                      child: Text(_transcribeError!,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.red))),
+                ]),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFooter(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildFooterPill(LucideIcons.searchCode, 'Scrapes real reviews'),
+        const SizedBox(width: 8),
+        _buildFooterPill(LucideIcons.bot, '4 AI agents'),
+        const SizedBox(width: 8),
+        _buildFooterPill(LucideIcons.barChart2, 'Market score'),
+      ],
+    );
+  }
+
+  Widget _buildFooterPill(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black26, width: 1.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: RetroTheme.textMuted),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: RetroTheme.textMuted,
+            ),
+          ),
+        ],
       ),
     );
   }
