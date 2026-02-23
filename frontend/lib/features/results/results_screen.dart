@@ -328,11 +328,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Widget _buildRevenueModelsSection() {
     final items = List<dynamic>.from(widget.result['revenue_model_options'] ?? []);
     if (items.isEmpty) return const SizedBox.shrink();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionLabel('REVENUE MODELS', LucideIcons.dollarSign),
-      const SizedBox(height: 10),
-      _buildListSection('Revenue Models', LucideIcons.dollarSign, items, RetroTheme.lavender),
-    ]);
+    return _buildListSection('Revenue Models', LucideIcons.dollarSign, items, RetroTheme.lavender);
   }
 
   Widget _buildFundedCompetitorsSection() {
@@ -343,7 +339,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       const SizedBox(height: 10),
       RetroCard(
         backgroundColor: RetroTheme.pink,
-        child: Column(children: items.asMap().entries.map((e) {
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: items.asMap().entries.map((e) {
           final c = e.value is Map ? Map<String, dynamic>.from(e.value as Map) : <String, dynamic>{};
           return Padding(
             padding: EdgeInsets.only(bottom: e.key < items.length - 1 ? 14 : 0),
@@ -373,21 +369,13 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Widget _buildGTMSection() {
     final gtm = widget.result['go_to_market_strategy'] as String? ?? '';
     if (gtm.isEmpty) return const SizedBox.shrink();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionLabel('GO-TO-MARKET STRATEGY', LucideIcons.target),
-      const SizedBox(height: 10),
-      _buildTextSection('Go-To-Market Strategy', LucideIcons.target, gtm, RetroTheme.orange),
-    ]);
+    return _buildTextSection('Go-To-Market Strategy', LucideIcons.target, gtm, RetroTheme.orange);
   }
 
   Widget _buildFundingLandscapeSection() {
     final fl = widget.result['funding_landscape'] as String? ?? '';
     if (fl.isEmpty) return const SizedBox.shrink();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _sectionLabel('FUNDING LANDSCAPE', LucideIcons.trendingUp),
-      const SizedBox(height: 10),
-      _buildTextSection('Funding Landscape', LucideIcons.trendingUp, fl, RetroTheme.blue),
-    ]);
+    return _buildTextSection('Funding Landscape', LucideIcons.trendingUp, fl, RetroTheme.blue);
   }
 
   static const _categoryLabels = {
@@ -705,16 +693,28 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   ),
                 ],
 
-                const SizedBox(height: 20),
-                _buildMarketSizingSection(),
-                const SizedBox(height: 20),
-                _buildRevenueModelsSection(),
-                const SizedBox(height: 20),
-                _buildFundedCompetitorsSection(),
-                const SizedBox(height: 20),
-                _buildGTMSection(),
-                const SizedBox(height: 20),
-                _buildFundingLandscapeSection(),
+                if ((widget.result['tam'] as String? ?? '').isNotEmpty ||
+                    (widget.result['sam'] as String? ?? '').isNotEmpty ||
+                    (widget.result['som'] as String? ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildMarketSizingSection(),
+                ],
+                if ((widget.result['revenue_model_options'] as List? ?? []).isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildRevenueModelsSection(),
+                ],
+                if ((widget.result['top_funded_competitors'] as List? ?? []).isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildFundedCompetitorsSection(),
+                ],
+                if ((widget.result['go_to_market_strategy'] as String? ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildGTMSection(),
+                ],
+                if ((widget.result['funding_landscape'] as String? ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildFundingLandscapeSection(),
+                ],
                 const SizedBox(height: 20),
 
                 // Pricing + Market side by side on wide
