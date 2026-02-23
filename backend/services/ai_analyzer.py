@@ -189,22 +189,33 @@ def _run_analyst_agent(client: genai.Client, idea: str, researcher_data: Researc
     Researcher's findings:
     - What users love about competitors: {json.dumps(researcher_data.what_users_love)}
     - What users hate (pain points): {json.dumps(researcher_data.what_users_hate)}
+    - Community signals (Reddit/HN/PH/Twitter): {json.dumps(researcher_data.community_signals)}
+
     PM's MVP Roadmap: {json.dumps(pm_data.mvp_roadmap)}
 
-    Task 1 — Score the opportunity across these 5 dimensions (each 0-100). Be critical and evidence-based, not optimistic:
-      • pain_severity: How severe and frequent are the unmet pain points? (100 = users are desperate, 0 = minor annoyances)
-      • market_gap: How large is the gap between user needs and what competitors deliver? (100 = massive unserved need, 0 = competitors already solve everything)
-      • mvp_feasibility: How realistic is the proposed MVP to build and ship within 3 months for a small team? (100 = trivially buildable, 0 = requires years of R&D)
-      • competition_density: How crowded is the market? (100 = wide open / few weak competitors, 0 = saturated with well-funded strong players)
-      • monetization_potential: How willing are target users to pay, based on category norms and competitor pricing? (100 = high willingness, proven paid market, 0 = users expect everything free)
+    Task 1 — Score the opportunity across these 7 dimensions (each 0-100). Be critical and evidence-based, not optimistic:
+
+      • pain_severity (25% weight): How severe and frequent are the unmet pain points? Base this on app store reviews AND community signals. (100 = users are desperate and vocal, 0 = minor annoyances)
+      • market_gap (20% weight): How large is the gap between user needs and what competitors deliver? (100 = massive unserved need, 0 = competitors already solve everything)
+      • mvp_feasibility (15% weight): How realistic is the proposed MVP to build and ship within 3 months for a small team? (100 = trivially buildable, 0 = requires years of R&D)
+      • competition_density (15% weight): How crowded is the app store market? (100 = wide open / few weak competitors, 0 = saturated with well-funded strong players)
+      • monetization_potential (10% weight): How willing are target users to pay, based on category norms and competitor pricing? (100 = proven paid market, 0 = users expect everything free)
+      • community_demand (10% weight): How much active community desire exists for this type of product on Reddit, HN, Product Hunt, and Twitter? Use Google Search to check. (100 = loud vocal demand with many posts/requests/upvotes, 0 = nobody is talking about this need online)
+      • startup_saturation (5% weight): Are well-funded VC-backed startups already competing in this exact space? Use Google Search to check recent funding rounds. Inverted: (100 = no funded startups found, 0 = multiple well-funded startups with large teams already exist)
 
     Task 2: Suggest a concise 'pricing_suggestion' (e.g., Freemium, One-Time $4.99, Subscription $X/mo) based on typical software economics in this category.
     Task 3: Provide a 'market_breakdown' comparing typical iOS vs Android user behaviors for this specific app category.
     Task 4: Give a definite 'target_os_recommendation' for which platform to target first for MVP launch and why.
     """
+    from google.genai import types
     response = client.models.generate_content(
         model='gemini-3-flash-preview',
         contents=prompt,
-        config={"response_mime_type": "application/json", "response_schema": AnalystOutput, "temperature": 0.2},
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=AnalystOutput,
+            temperature=0.2,
+            tools=[{"google_search": {}}]
+        ),
     )
     return AnalystOutput(**json.loads(response.text))
