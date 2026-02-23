@@ -305,13 +305,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _sectionLabel('MARKET SIZING', LucideIcons.trendingUp),
       const SizedBox(height: 10),
-      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _buildMarketCard('TAM', tam, RetroTheme.yellow),
-        const SizedBox(width: 8),
-        _buildMarketCard('SAM', sam, RetroTheme.mint),
-        const SizedBox(width: 8),
-        _buildMarketCard('SOM', som, RetroTheme.blue),
-      ]),
+      IntrinsicHeight(
+        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          _buildMarketCard('TAM', tam, RetroTheme.yellow),
+          const SizedBox(width: 8),
+          _buildMarketCard('SAM', sam, RetroTheme.mint),
+          const SizedBox(width: 8),
+          _buildMarketCard('SOM', som, RetroTheme.blue),
+        ]),
+      ),
     ]);
   }
 
@@ -322,8 +324,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
         const SizedBox(height: 6),
-        Text(value.length > 80 ? '${value.substring(0, 80)}...' : value,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, height: 1.4)),
+        Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, height: 1.4)),
       ]),
     ));
   }
