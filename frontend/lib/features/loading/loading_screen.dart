@@ -307,7 +307,10 @@ class _LoadingScreenState extends State<LoadingScreen>
   Widget _buildStepsList() {
     return RetroCard(
       backgroundColor: Colors.white,
-      child: Column(
+      padding: EdgeInsets.zero,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: List.generate(_stepNames.length, (i) {
           return _buildStepRow(
@@ -321,6 +324,7 @@ class _LoadingScreenState extends State<LoadingScreen>
             i < _stepNames.length - 1,
           );
         }),
+      ),
       ),
     );
   }
@@ -367,10 +371,10 @@ class _LoadingScreenState extends State<LoadingScreen>
       AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         color: bg,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         child: Row(children: [
           icon,
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
