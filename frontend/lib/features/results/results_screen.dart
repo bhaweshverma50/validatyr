@@ -133,39 +133,41 @@ class _ResultsScreenState extends State<ResultsScreen> {
       {'key': 'startup_saturation',     'label': 'Startup Saturation', 'weight': '5%',  'color': RetroTheme.lavender, 'icon': LucideIcons.building},
     ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: dimensions.map((dim) {
-        final value = (breakdown[dim['key']] ?? 0).toDouble();
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 14.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(dim['icon'] as IconData, size: 14, color: Colors.black),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      dim['label'] as String,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: dimensions.map((dim) {
+          final value = (breakdown[dim['key']] ?? 0).toDouble();
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(dim['icon'] as IconData, size: 14, color: Colors.black),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        dim['label'] as String,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${value.toInt()}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w900,
-                      color: RetroTheme.scoreColor(value) == RetroTheme.yellow ? Colors.black : RetroTheme.scoreColor(value),
+                    Text(
+                      '${value.toInt()}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.black,
+                      ),
                     ),
-                  ),
-                  Text(
-                    '  (${dim['weight']})',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black38),
-                  ),
-                ],
-              ),
+                    Text(
+                      '  (${dim['weight']})',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black54),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 5),
               Container(
                 height: 16,
@@ -187,8 +189,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
               ),
             ],
           ),
-        );
-      }).toList(),
+          );
+        }).toList(),
+      ),
     );
   }
 
