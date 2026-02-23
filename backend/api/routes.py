@@ -16,8 +16,11 @@ from services.audio_processor import transcribe_audio
 from services.db import save_validation_result
 import asyncio
 import json as _json
+import os
 from concurrent.futures import ThreadPoolExecutor
 import logging
+
+from google import genai as _genai
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,7 @@ class ValidationRequest(BaseModel):
     idea: str
     play_store_id: Optional[str] = None
     app_store_id: Optional[int] = None
+    app_store_name: Optional[str] = None
     model_provider: str = "gemini"
 
 @router.post("/transcribe")
@@ -92,7 +96,7 @@ async def validate_idea_stream(request: ValidationRequest, req: Request):
     """Streams SSE events for the full validation pipeline."""
 
     async def event_generator() -> AsyncGenerator[dict, None]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         idea = request.idea
 
         try:
@@ -136,8 +140,6 @@ async def validate_idea_stream(request: ValidationRequest, req: Request):
                 }),
             }
 
-            import os
-            from google import genai as _genai
             api_key = os.getenv("GEMINI_API_KEY")
             if not api_key:
                 raise ValueError("GEMINI_API_KEY not set.")
