@@ -68,6 +68,12 @@ class AnalystOutput(BaseModel):
     target_os_recommendation: str = Field(description="Recommendation on which OS (iOS, Android, Mac, Windows, Web) to target first and why, based on competitor presence and app type.")
     market_breakdown: str = Field(description="A short analysis of the market split and user behaviors on iOS vs Android for this specific idea.")
 
+class FundedCompetitor(BaseModel):
+    name: str
+    funding: str = ""
+    stage: str = ""
+    investors: str = ""
+
 class MarketIntelligenceOutput(BaseModel):
     score_breakdown: OpportunityScoreBreakdown
     pricing_suggestion: str
@@ -77,7 +83,7 @@ class MarketIntelligenceOutput(BaseModel):
     sam: str                              # serviceable addressable segment
     som: str                              # realistically obtainable year 1-2
     revenue_model_options: List[str]      # 2-4 options with pricing benchmarks
-    top_funded_competitors: List[dict]    # [{"name": ..., "funding": ..., "investors": ...}]
+    top_funded_competitors: List[FundedCompetitor] = []  # typed for schema safety
     funding_landscape: str               # 2-3 sentence VC narrative
     go_to_market_strategy: str           # 2-3 top GTM channels for this category
 
@@ -270,7 +276,7 @@ def run_researcher_agent(client: genai.Client, idea: str, reviews_text: str, cat
             response_mime_type="application/json",
             response_schema=ResearcherOutput,
             temperature=0.2,
-            tools=[{"google_search": {}}]
+            tools=[types.Tool(google_search=types.GoogleSearch())]
         ),
     )
     return ResearcherOutput(**json.loads(response.text))
@@ -326,7 +332,7 @@ def run_analyst_agent(client: genai.Client, idea: str, researcher_data: Research
             response_mime_type="application/json",
             response_schema=AnalystOutput,
             temperature=0.2,
-            tools=[{"google_search": {}}]
+            tools=[types.Tool(google_search=types.GoogleSearch())]
         ),
     )
     return AnalystOutput(**json.loads(response.text))
@@ -391,7 +397,7 @@ PLATFORM RECOMMENDATION: iOS first vs Android vs cross-platform (or distribution
 MARKET BREAKDOWN: 2-3 sentences on geography, customer type, B2B vs B2C segmentation"""
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3-flash-preview",
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.2,
