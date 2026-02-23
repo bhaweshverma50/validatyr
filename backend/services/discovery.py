@@ -49,7 +49,7 @@ def _discover_web_startups(client: genai.Client, idea: str, query: str) -> List[
             response_mime_type="application/json",
             response_schema=StartupDiscoveryOutput,
             temperature=0.2,
-            tools=[{"google_search": {}}]
+            tools=[types.Tool(google_search=types.GoogleSearch())]
         ),
     )
 

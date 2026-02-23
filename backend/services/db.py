@@ -29,11 +29,20 @@ def save_validation_result(idea: str, result: dict) -> dict:
         "what_users_hate": result.get("what_users_hate", []),
         "mvp_roadmap": result.get("mvp_roadmap", []),
         "pricing_suggestion": result.get("pricing_suggestion", ""),
-        "target_os_recommendation": result.get("target_os_recommendation", ""),
+        "target_os_recommendation": result.get("target_os_recommendation") or result.get("target_platform_recommendation", ""),
         "market_breakdown": result.get("market_breakdown", ""),
         "score_breakdown": result.get("score_breakdown", {}),
         "community_signals": result.get("community_signals", []),
         "competitors_analyzed": result.get("competitors_analyzed", []),
+        "category": result.get("category", "mobile_app"),
+        "subcategory": result.get("subcategory", ""),
+        "tam": result.get("tam", ""),
+        "sam": result.get("sam", ""),
+        "som": result.get("som", ""),
+        "revenue_model_options": result.get("revenue_model_options", []),
+        "top_funded_competitors": result.get("top_funded_competitors", []),
+        "funding_landscape": result.get("funding_landscape", ""),
+        "go_to_market_strategy": result.get("go_to_market_strategy", ""),
     }
     
     if not supabase:

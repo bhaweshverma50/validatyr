@@ -94,7 +94,7 @@ async def validate_idea(request: ValidationRequest):
             reviews.extend(ios_reviews)
     else:
         logger.info("No App IDs provided. Firing up Discovery Agent...")
-        reviews, competitors_meta = discover_competitors_and_scrape(request.idea)
+        reviews, competitors_meta = discover_competitors_and_scrape(request.idea, request.category or "mobile_app")
         
     if not reviews:
         raise HTTPException(status_code=404, detail="No competitors found or failed to scrape reviews. Try providing specific App IDs.")
@@ -102,7 +102,7 @@ async def validate_idea(request: ValidationRequest):
     try:
         # Pass the concatenated reviews to the Multi-Agent validation engine
         logger.info(f"Starting Multi-Agent analysis for idea: {request.idea[:50]}...")
-        result = analyze_reviews_multi_agent(request.idea, reviews, competitors_meta, request.model_provider)
+        result = analyze_reviews_multi_agent(request.idea, reviews, competitors_meta, request.model_provider, request.category or "mobile_app")
         
         # Save to database (will mock if Supabase credentials are not set)
         save_validation_result(request.idea, result.model_dump())

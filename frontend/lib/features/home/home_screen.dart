@@ -568,7 +568,7 @@ class _HomeScreenState extends State<HomeScreen>
       children: [
         _buildFooterPill(LucideIcons.searchCode, 'Scrapes real reviews'),
         const SizedBox(width: 8),
-        _buildFooterPill(LucideIcons.bot, '4 AI agents'),
+        _buildFooterPill(LucideIcons.bot, '5 AI agents'),
         const SizedBox(width: 8),
         _buildFooterPill(LucideIcons.barChart2, 'Market score'),
       ],

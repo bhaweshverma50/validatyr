@@ -125,7 +125,7 @@ class IdeaValidationResult(BaseModel):
 
 # --- Multi-Agent Orchestrator ---
 
-def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], competitors_meta: List[Dict[str, Any]] = None, model_provider: str = "gemini") -> IdeaValidationResult:
+def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], competitors_meta: List[Dict[str, Any]] = None, model_provider: str = "gemini", category: str = "mobile_app") -> IdeaValidationResult:
     """Orchestrates the Multi-Agent pipeline to validate the app idea."""
     if not reviews:
         raise ValueError("No reviews provided for analysis.")
@@ -133,26 +133,26 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY environment variable not set. Please add it to your .env file.")
-        
+
     client = genai.Client(api_key=api_key)
-    
+
     # Take a sample of reviews to manage context limits
     reviews_sample = reviews[:200]
     reviews_text = json.dumps([{"rating": r["score"], "review": r["content"]} for r in reviews_sample])
 
     logger.info("Agent 1 (Researcher) is spinning up...")
-    researcher_result = run_researcher_agent(client, app_idea, reviews_text)
+    researcher_result = run_researcher_agent(client, app_idea, reviews_text, category)
     
     logger.info("Agent 2 (Product Manager) is spinning up...")
     pm_result = run_pm_agent(client, app_idea, researcher_result)
-    
-    logger.info("Agent 3 (Business Analyst) is spinning up...")
-    analyst_result = run_analyst_agent(client, app_idea, researcher_result, pm_result)
+
+    logger.info("Agent 3 (Market Intelligence) is spinning up...")
+    market_result = run_market_intelligence_agent(client, app_idea, researcher_result, pm_result, category)
 
     logger.info("Multi-Agent pipeline completed successfully.")
-    
+
     # Weighted opportunity score from individual dimensions
-    breakdown = analyst_result.score_breakdown
+    breakdown = market_result.score_breakdown
     weights = {
         "pain_severity": 0.25,
         "market_gap": 0.20,
@@ -182,16 +182,24 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
     )
 
     return IdeaValidationResult(
+        category=category,
         opportunity_score=opportunity_score,
         score_breakdown=breakdown.model_dump(),
         what_users_love=researcher_result.what_users_love,
         what_users_hate=researcher_result.what_users_hate,
         mvp_roadmap=pm_result.mvp_roadmap,
-        pricing_suggestion=analyst_result.pricing_suggestion,
-        target_platform_recommendation=analyst_result.target_os_recommendation,
-        market_breakdown=analyst_result.market_breakdown,
+        pricing_suggestion=market_result.pricing_suggestion,
+        target_platform_recommendation=market_result.target_platform_recommendation,
+        market_breakdown=market_result.market_breakdown,
         competitors_analyzed=competitors_meta or [],
         community_signals=researcher_result.community_signals,
+        tam=market_result.tam,
+        sam=market_result.sam,
+        som=market_result.som,
+        revenue_model_options=market_result.revenue_model_options,
+        top_funded_competitors=[c.model_dump() for c in market_result.top_funded_competitors],
+        funding_landscape=market_result.funding_landscape,
+        go_to_market_strategy=market_result.go_to_market_strategy,
     )
 
 # --- Individual Agents ---
