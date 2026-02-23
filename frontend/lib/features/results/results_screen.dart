@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
+import '../../services/supabase_service.dart';
 
 class _ScoreGaugePainter extends CustomPainter {
   final double score;
@@ -55,10 +56,31 @@ class _ScoreGaugePainter extends CustomPainter {
       old.score != score || old.scoreColor != scoreColor;
 }
 
-class ResultsScreen extends StatelessWidget {
+class ResultsScreen extends StatefulWidget {
   final Map<String, dynamic> result;
+  final bool saveToHistory;
 
-  const ResultsScreen({super.key, required this.result});
+  const ResultsScreen({super.key, required this.result, this.saveToHistory = true});
+
+  @override
+  State<ResultsScreen> createState() => _ResultsScreenState();
+}
+
+class _ResultsScreenState extends State<ResultsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.saveToHistory) _save();
+  }
+
+  Future<void> _save() async {
+    try {
+      final idea = widget.result['idea'] as String? ?? '';
+      await SupabaseService.insert(idea, widget.result);
+    } catch (e) {
+      debugPrint('ResultsScreen Supabase save error (non-fatal): $e');
+    }
+  }
 
   Widget _buildScoreGauge(double score) {
     final color = RetroTheme.scoreColor(score);
@@ -102,11 +124,13 @@ class ResultsScreen extends StatelessWidget {
 
   Widget _buildScoreBreakdown(Map<String, dynamic> breakdown) {
     final dimensions = [
-      {'key': 'pain_severity', 'label': 'Pain Severity', 'weight': '30%', 'color': RetroTheme.pink, 'icon': LucideIcons.flame},
-      {'key': 'market_gap', 'label': 'Market Gap', 'weight': '25%', 'color': RetroTheme.blue, 'icon': LucideIcons.target},
-      {'key': 'mvp_feasibility', 'label': 'MVP Feasibility', 'weight': '20%', 'color': RetroTheme.mint, 'icon': LucideIcons.wrench},
-      {'key': 'competition_density', 'label': 'Competition', 'weight': '15%', 'color': RetroTheme.lavender, 'icon': LucideIcons.users},
-      {'key': 'monetization_potential', 'label': 'Monetization', 'weight': '10%', 'color': RetroTheme.yellow, 'icon': LucideIcons.dollarSign},
+      {'key': 'pain_severity',          'label': 'Pain Severity',      'weight': '25%', 'color': RetroTheme.pink,     'icon': LucideIcons.flame},
+      {'key': 'market_gap',             'label': 'Market Gap',         'weight': '20%', 'color': RetroTheme.blue,     'icon': LucideIcons.target},
+      {'key': 'mvp_feasibility',        'label': 'MVP Feasibility',    'weight': '15%', 'color': RetroTheme.mint,     'icon': LucideIcons.wrench},
+      {'key': 'competition_density',    'label': 'Competition',        'weight': '15%', 'color': RetroTheme.lavender, 'icon': LucideIcons.users},
+      {'key': 'monetization_potential', 'label': 'Monetization',       'weight': '10%', 'color': RetroTheme.yellow,   'icon': LucideIcons.dollarSign},
+      {'key': 'community_demand',       'label': 'Community Demand',   'weight': '10%', 'color': RetroTheme.blue,     'icon': LucideIcons.messageSquare},
+      {'key': 'startup_saturation',     'label': 'Startup Saturation', 'weight': '5%',  'color': RetroTheme.lavender, 'icon': LucideIcons.building},
     ];
 
     return Column(
@@ -260,6 +284,24 @@ class ResultsScreen extends StatelessWidget {
     );
   }
 
+  Color _sourceColor(String source) {
+    switch (source) {
+      case 'product_hunt': return RetroTheme.pink;
+      case 'ycombinator': return const Color(0xFFFF6600);
+      default: return RetroTheme.lavender;
+    }
+  }
+
+  String _sourceBadgeLabel(String source) {
+    switch (source) {
+      case 'product_hunt': return 'PH';
+      case 'ycombinator': return 'YC';
+      case 'play_store': return 'AND';
+      case 'app_store': return 'IOS';
+      default: return 'WEB';
+    }
+  }
+
   Widget _buildCompetitorsSection(List<dynamic> competitors) {
     if (competitors.isEmpty) return const SizedBox.shrink();
 
@@ -312,6 +354,20 @@ class ResultsScreen extends StatelessWidget {
                         ),
                       ),
                     ],
+                    if (comp['source'] != null) ...[
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: _sourceColor(comp['source'].toString()),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          _sourceBadgeLabel(comp['source'].toString()),
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -324,17 +380,18 @@ class ResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final double score = (result['opportunity_score'] ?? 0).toDouble();
-    final Map<String, dynamic> breakdown = (result['score_breakdown'] is Map)
-        ? Map<String, dynamic>.from(result['score_breakdown'])
+    final double score = (widget.result['opportunity_score'] ?? 0).toDouble();
+    final Map<String, dynamic> breakdown = (widget.result['score_breakdown'] is Map)
+        ? Map<String, dynamic>.from(widget.result['score_breakdown'])
         : {};
-    final List<dynamic> loves = result['what_users_love'] ?? [];
-    final List<dynamic> hates = result['what_users_hate'] ?? [];
-    final List<dynamic> roadmap = result['mvp_roadmap'] ?? [];
-    final String marketBreakdown = result['market_breakdown']?.toString() ?? '';
-    final String pricing = result['pricing_suggestion']?.toString() ?? '';
-    final String targetOs = result['target_os_recommendation']?.toString() ?? '';
-    final List<dynamic> competitors = result['competitors_analyzed'] ?? [];
+    final List<dynamic> loves = widget.result['what_users_love'] ?? [];
+    final List<dynamic> hates = widget.result['what_users_hate'] ?? [];
+    final List<dynamic> roadmap = widget.result['mvp_roadmap'] ?? [];
+    final String marketBreakdown = widget.result['market_breakdown']?.toString() ?? '';
+    final String pricing = widget.result['pricing_suggestion']?.toString() ?? '';
+    final String targetOs = widget.result['target_os_recommendation']?.toString() ?? '';
+    final List<dynamic> competitors = widget.result['competitors_analyzed'] ?? [];
+    final List<dynamic> communitySignals = widget.result['community_signals'] ?? [];
 
     final screenWidth = MediaQuery.of(context).size.width;
     final isWide = screenWidth > RetroTheme.tabletBreakpoint;
@@ -500,6 +557,16 @@ class ResultsScreen extends StatelessWidget {
 
                 const SizedBox(height: 20),
                 _buildListSection('Day-1 MVP Roadmap', LucideIcons.rocket, roadmap, RetroTheme.lavender),
+
+                if (communitySignals.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildListSection(
+                    'Community Signals',
+                    LucideIcons.messageCircle,
+                    communitySignals,
+                    RetroTheme.orange,
+                  ),
+                ],
 
                 const SizedBox(height: 20),
 
