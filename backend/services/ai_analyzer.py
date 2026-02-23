@@ -190,29 +190,72 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
 
 # --- Individual Agents ---
 
-def run_researcher_agent(client: genai.Client, idea: str, reviews_text: str) -> ResearcherOutput:
-    prompt = f"""
-    You are an expert App Market Researcher with live access to Google Search.
-    The user is building an app with this idea: "{idea}"
+def _researcher_prompt(idea: str, reviews_text: str, category: str) -> str:
+    base = f'Startup idea: "{idea}"\n\n'
 
-    Task — gather signal from ALL of the following sources:
+    if category == "hardware":
+        return base + f"""You are a hardware market researcher with Google Search access.
+Competitor data: {reviews_text}
 
-    1. SCRAPED APP STORE REVIEWS (provided below) — extract pain points and loves directly.
-    2. REDDIT — Search Reddit for threads in r/apps, r/startups, r/entrepreneur, r/SideProject, and any niche subreddits relevant to this idea. Look for complaints about existing tools, feature requests, and "is there an app that does X?" posts.
-    3. HACKERNEWS — Search HackerNews for "Ask HN" posts, Show HN launches, and comment threads discussing this problem space.
-    4. PRODUCT HUNT — Search Product Hunt for upvoted products in this category. Read the comments and reviews on those products.
-    5. TWITTER/X — Search Twitter/X for complaints, feature requests, and discussions about the competitor apps and the problem this idea solves.
+Search and analyze:
+1. Reddit complaints about existing hardware in this space (r/hardware, r/DIY, category-specific subs)
+2. Kickstarter campaign failures and backer complaints in this niche
+3. Supply chain / manufacturing challenges reported by founders
+4. Regulatory hurdles (FCC, CE, safety certifications)
+5. Price sensitivity and customer expectations from forums/reviews
 
-    Use Google Search actively for each of these sources. Do not rely only on the scraped reviews.
+Return JSON: {{"what_users_love": [5 positives], "what_users_hate": [5 pain points or manufacturing challenges], "community_signals": [5 forum/community insights]}}"""
 
-    From all sources combined, extract:
-    - what_users_love: Top 5 things users consistently praise about existing solutions
-    - what_users_hate: Top 5 pain points, complaints, or unmet needs (be specific, quote where possible)
-    - community_signals: Top 5 notable quotes or insights from Reddit/HN/PH/Twitter that reveal strong demand, frustration, or opportunity (include the source platform)
+    if category == "fintech":
+        return base + f"""You are a FinTech market researcher with Google Search access.
+Competitor app reviews and data: {reviews_text}
 
-    SCRAPED APP STORE REVIEWS:
-    {reviews_text}
-    """
+Search and analyze:
+1. Regulatory/compliance burden for this FinTech niche (banking license, KYC/AML, PCI-DSS)
+2. Banking API availability and cost (Plaid, Stripe, open banking APIs)
+3. Community complaints on r/fintech, r/personalfinance, r/investing about existing solutions
+4. Security and fraud concerns from user reviews
+5. Recent YC/a16z FinTech investments signaling market validation
+
+Return JSON: {{"what_users_love": [5 positives], "what_users_hate": [5 pain points + compliance hurdles], "community_signals": [5 fintech-specific insights]}}"""
+
+    if category == "saas_web":
+        return base + f"""You are a SaaS market researcher with Google Search access.
+Competitor data: {reviews_text}
+
+Search and analyze:
+1. G2/Capterra user reviews — top churn reasons and complaints for competing products
+2. Integration requirements (what tools must this connect to for adoption?)
+3. Pricing sensitivity in this SaaS niche (search competitor pricing pages)
+4. Enterprise vs SMB fit signals from HN/Reddit/LinkedIn discussions
+5. Recent ProductHunt launches and their upvote traction
+
+Return JSON: {{"what_users_love": [5 positives], "what_users_hate": [5 pain points / churn drivers], "community_signals": [5 SaaS-specific market insights]}}"""
+
+    # Default: mobile_app
+    return base + f"""You are an expert App Market Researcher with live access to Google Search.
+
+Task — gather signal from ALL of the following sources:
+
+1. SCRAPED APP STORE REVIEWS (provided below) — extract pain points and loves directly.
+2. REDDIT — Search Reddit for threads in r/apps, r/startups, r/entrepreneur, r/SideProject, and any niche subreddits relevant to this idea. Look for complaints about existing tools, feature requests, and "is there an app that does X?" posts.
+3. HACKERNEWS — Search HackerNews for "Ask HN" posts, Show HN launches, and comment threads discussing this problem space.
+4. PRODUCT HUNT — Search Product Hunt for upvoted products in this category. Read the comments and reviews on those products.
+5. TWITTER/X — Search Twitter/X for complaints, feature requests, and discussions about the competitor apps and the problem this idea solves.
+
+Use Google Search actively for each of these sources. Do not rely only on the scraped reviews.
+
+From all sources combined, extract:
+- what_users_love: Top 5 things users consistently praise about existing solutions
+- what_users_hate: Top 5 pain points, complaints, or unmet needs (be specific, quote where possible)
+- community_signals: Top 5 notable quotes or insights from Reddit/HN/PH/Twitter that reveal strong demand, frustration, or opportunity (include the source platform)
+
+SCRAPED APP STORE REVIEWS:
+{reviews_text}"""
+
+
+def run_researcher_agent(client: genai.Client, idea: str, reviews_text: str, category: str = "mobile_app") -> ResearcherOutput:
+    prompt = _researcher_prompt(idea, reviews_text, category)
     response = client.models.generate_content(
         model='gemini-3-flash-preview',
         contents=prompt,
