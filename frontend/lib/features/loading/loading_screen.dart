@@ -31,27 +31,18 @@ class LoadingScreen extends StatefulWidget {
 
 class _LoadingScreenState extends State<LoadingScreen>
     with SingleTickerProviderStateMixin {
-  final List<_AgentStep> _steps = [
-    _AgentStep(
-        name: 'Discovery Agent',
-        defaultMessage: 'Finding competitors...',
-        stepNumber: 1),
-    _AgentStep(
-        name: 'Researcher Agent',
-        defaultMessage: 'Analyzing reviews & community...',
-        stepNumber: 2),
-    _AgentStep(
-        name: 'PM Agent',
-        defaultMessage: 'Building MVP roadmap...',
-        stepNumber: 3),
-    _AgentStep(
-        name: 'Analyst Agent',
-        defaultMessage: 'Scoring opportunity...',
-        stepNumber: 4),
-  ];
+  static const _categoryLabels = {
+    'mobile_app': 'Mobile App',
+    'hardware':   'Hardware',
+    'fintech':    'FinTech',
+    'saas_web':   'SaaS / Web',
+  };
 
-  late List<_StepState> _stepStates;
-  late List<String> _stepMessages;
+  final List<String> _stepNames = [];
+  final List<String> _stepMessages = [];
+  final List<_StepState> _stepStates = [];
+  int _totalSteps = 5;
+  String? _detectedCategoryLabel;
 
   StreamSubscription<SseEvent>? _sub;
   late final AnimationController _progressCtrl;
@@ -63,14 +54,18 @@ class _LoadingScreenState extends State<LoadingScreen>
   @override
   void initState() {
     super.initState();
-    _stepStates = List.filled(_steps.length, _StepState.pending);
-    _stepMessages = _steps.map((s) => s.defaultMessage).toList();
     _progressCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 600));
     _progressAnim = Tween<double>(begin: 0, end: 0).animate(
       CurvedAnimation(parent: _progressCtrl, curve: Curves.easeInOut),
     );
     _startStream();
+    // Seed the first step: Category Detector
+    _stepNames.add('Category Detector');
+    _stepMessages.add(widget.category != null
+        ? 'Category: ${_categoryLabels[widget.category] ?? widget.category}'
+        : 'Classifying your idea...');
+    _stepStates.add(_StepState.active);
   }
 
   @override
@@ -91,13 +86,13 @@ class _LoadingScreenState extends State<LoadingScreen>
   }
 
   void _startStream() {
+    // TODO(Task9): pass category: widget.category once ApiService.validateStream accepts it
     _sub = ApiService.validateStream(widget.idea).listen(
       _onEvent,
       onError: (e) => _setError(e.toString()),
       onDone: () {
         if (mounted && !_hasError && !_hasResult) {
-          _setError(
-              'Connection closed unexpectedly. Please try again.');
+          _setError('Connection closed unexpectedly. Please try again.');
         }
       },
       cancelOnError: true,
@@ -106,25 +101,33 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   void _onEvent(SseEvent event) {
     if (!mounted) return;
-    if (event.event == 'status') {
-      final step = ((event.data['step'] as int?) ?? 1) - 1;
+    if (event.event == 'category') {
+      final label = event.data['label'] as String?;
+      setState(() => _detectedCategoryLabel = label);
+    } else if (event.event == 'status') {
+      final stepIdx = ((event.data['step'] as int?) ?? 1) - 1;
+      final total = (event.data['total'] as int?) ?? 5;
+      final agentName = event.data['agent'] as String? ?? '';
       final msg = event.data['message'] as String? ?? '';
       setState(() {
-        for (int i = 0; i < step; i++) {
-          _stepStates[i] = _StepState.done;
+        _totalSteps = total;
+        // Grow lists dynamically to accommodate stepIdx
+        while (_stepNames.length <= stepIdx) {
+          _stepNames.add(agentName);
+          _stepMessages.add(msg);
+          _stepStates.add(_StepState.pending);
         }
-        if (step < _steps.length) {
-          _stepStates[step] = _StepState.active;
-          _stepMessages[step] = msg;
-        }
+        _stepNames[stepIdx] = agentName;
+        _stepMessages[stepIdx] = msg;
+        // Mark previous steps done
+        for (int i = 0; i < stepIdx; i++) { _stepStates[i] = _StepState.done; }
+        _stepStates[stepIdx] = _StepState.active;
       });
-      _animateTo((step + 0.5) / _steps.length);
+      _animateTo((stepIdx + 0.5) / _totalSteps);
     } else if (event.event == 'result') {
+      _hasResult = true;
       setState(() {
-        for (int i = 0; i < _stepStates.length; i++) {
-          _stepStates[i] = _StepState.done;
-        }
-        _hasResult = true;
+        for (int i = 0; i < _stepStates.length; i++) { _stepStates[i] = _StepState.done; }
       });
       _animateTo(1.0);
       _saveAndNavigate(event.data);
@@ -192,6 +195,32 @@ class _LoadingScreenState extends State<LoadingScreen>
                         fontStyle: FontStyle.italic),
                     textAlign: TextAlign.center,
                   ),
+                  if (_detectedCategoryLabel != null)
+                    Center(
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: RetroTheme.mint,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.black, width: 2),
+                          boxShadow: const [
+                            BoxShadow(
+                                color: Colors.black,
+                                offset: Offset(2, 2),
+                                blurRadius: 0)
+                          ],
+                        ),
+                        child: Text(
+                          (_detectedCategoryLabel ?? '').toUpperCase(),
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.2),
+                        ),
+                      ),
+                    ),
                   const SizedBox(height: 32),
                   if (!_hasError) ...[
                     _buildProgressBar(),
@@ -271,14 +300,18 @@ class _LoadingScreenState extends State<LoadingScreen>
       backgroundColor: Colors.white,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: _steps.asMap().entries.map((e) {
+        children: List.generate(_stepNames.length, (i) {
           return _buildStepRow(
-            e.value,
-            _stepStates[e.key],
-            _stepMessages[e.key],
-            e.key < _steps.length - 1,
+            _AgentStep(
+              name: _stepNames[i],
+              defaultMessage: _stepMessages[i],
+              stepNumber: i + 1,
+            ),
+            _stepStates[i],
+            _stepMessages[i],
+            i < _stepNames.length - 1,
           );
-        }).toList(),
+        }),
       ),
     );
   }
