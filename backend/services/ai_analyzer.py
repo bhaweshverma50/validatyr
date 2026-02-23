@@ -33,7 +33,7 @@ Categories:
 Also provide a short subcategory (e.g. "ios_only", "cross_platform", "payments", "wearables", "B2B SaaS").
 Output JSON: {{"category": "...", "subcategory": "...", "rationale": "..."}}"""
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3-flash-preview",
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.1,

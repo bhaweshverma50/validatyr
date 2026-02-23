@@ -76,7 +76,7 @@ Return up to 8 competitors as JSON array:
 [{{"title": "...", "url": "...", "source": "kickstarter|amazon|ycombinator|web",
   "description": "...", "funding_hint": "..."}}]"""
     response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=prompt,
+        model="gemini-3-flash-preview", contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.2, tools=[types.Tool(google_search=types.GoogleSearch())],
         ),
@@ -106,7 +106,7 @@ Return up to 8 competitors as JSON array:
 [{{"title": "...", "url": "...", "source": "product_hunt|g2|ycombinator|web",
   "description": "...", "pricing_hint": "..."}}]"""
     response = client.models.generate_content(
-        model="gemini-2.0-flash", contents=prompt,
+        model="gemini-3-flash-preview", contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.2, tools=[types.Tool(google_search=types.GoogleSearch())],
         ),
