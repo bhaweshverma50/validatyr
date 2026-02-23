@@ -280,13 +280,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   color: RetroTheme.blue,
                   icon: LucideIcons.refreshCw,
                   onTap: () {
-                    // NOTE: HomeScreen does not yet accept initialIdea.
-                    // Task 8 will add that parameter. For now we navigate
-                    // to HomeScreen without pre-filling the idea text.
                     Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (_) => const HomeScreen()));
+                            builder: (_) => HomeScreen(initialIdea: idea)));
                   })),
           const SizedBox(width: 8),
           Expanded(
