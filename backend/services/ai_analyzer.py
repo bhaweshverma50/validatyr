@@ -72,13 +72,13 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
     reviews_text = json.dumps([{"rating": r["score"], "review": r["content"]} for r in reviews_sample])
 
     logger.info("Agent 1 (Researcher) is spinning up...")
-    researcher_result = _run_researcher_agent(client, app_idea, reviews_text)
+    researcher_result = run_researcher_agent(client, app_idea, reviews_text)
     
     logger.info("Agent 2 (Product Manager) is spinning up...")
-    pm_result = _run_pm_agent(client, app_idea, researcher_result)
+    pm_result = run_pm_agent(client, app_idea, researcher_result)
     
     logger.info("Agent 3 (Business Analyst) is spinning up...")
-    analyst_result = _run_analyst_agent(client, app_idea, researcher_result, pm_result)
+    analyst_result = run_analyst_agent(client, app_idea, researcher_result, pm_result)
 
     logger.info("Multi-Agent pipeline completed successfully.")
     
@@ -127,7 +127,7 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
 
 # --- Individual Agents ---
 
-def _run_researcher_agent(client: genai.Client, idea: str, reviews_text: str) -> ResearcherOutput:
+def run_researcher_agent(client: genai.Client, idea: str, reviews_text: str) -> ResearcherOutput:
     prompt = f"""
     You are an expert App Market Researcher with live access to Google Search.
     The user is building an app with this idea: "{idea}"
@@ -163,7 +163,7 @@ def _run_researcher_agent(client: genai.Client, idea: str, reviews_text: str) ->
     )
     return ResearcherOutput(**json.loads(response.text))
 
-def _run_pm_agent(client: genai.Client, idea: str, researcher_data: ResearcherOutput) -> PMOutput:
+def run_pm_agent(client: genai.Client, idea: str, researcher_data: ResearcherOutput) -> PMOutput:
     prompt = f"""
     You are an expert Product Manager.
     The user is building this app: "{idea}"
@@ -181,7 +181,7 @@ def _run_pm_agent(client: genai.Client, idea: str, researcher_data: ResearcherOu
     )
     return PMOutput(**json.loads(response.text))
 
-def _run_analyst_agent(client: genai.Client, idea: str, researcher_data: ResearcherOutput, pm_data: PMOutput) -> AnalystOutput:
+def run_analyst_agent(client: genai.Client, idea: str, researcher_data: ResearcherOutput, pm_data: PMOutput) -> AnalystOutput:
     prompt = f"""
     You are an expert Business Analyst & Strategist.
     App Idea: "{idea}"
