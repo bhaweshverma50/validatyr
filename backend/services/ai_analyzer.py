@@ -1,19 +1,19 @@
 import os
 import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Literal
 from google import genai
 from google.genai import types
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 logger = logging.getLogger(__name__)
 
 class CategoryDetectionOutput(BaseModel):
-    category: str  # "mobile_app" | "hardware" | "fintech" | "saas_web"
+    category: Literal["mobile_app", "hardware", "fintech", "saas_web"]
     subcategory: str  # e.g. "ios_only", "cross_platform", "payments", "B2B SaaS", "wearables"
     rationale: str
 
-def detect_category(client, idea: str, user_category: str | None = None) -> CategoryDetectionOutput:
+def detect_category(client: genai.Client, idea: str, user_category: str | None = None) -> CategoryDetectionOutput:
     """If user_category is valid, skip LLM and return it directly."""
     valid = ("mobile_app", "hardware", "fintech", "saas_web")
     if user_category and user_category in valid:
@@ -112,6 +112,7 @@ class IdeaValidationResult(BaseModel):
     funding_landscape: str = ""
     go_to_market_strategy: str = ""
 
+    @computed_field
     @property
     def target_os_recommendation(self) -> str:
         return self.target_platform_recommendation

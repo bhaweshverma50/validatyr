@@ -224,7 +224,7 @@ async def validate_idea_stream(request: ValidationRequest, req: Request):
                 what_users_hate=researcher_result.what_users_hate,
                 mvp_roadmap=pm_result.mvp_roadmap,
                 pricing_suggestion=analyst_result.pricing_suggestion,
-                target_os_recommendation=analyst_result.target_os_recommendation,
+                target_platform_recommendation=analyst_result.target_os_recommendation,
                 market_breakdown=analyst_result.market_breakdown,
                 competitors_analyzed=competitors_meta or [],
                 community_signals=researcher_result.community_signals,
