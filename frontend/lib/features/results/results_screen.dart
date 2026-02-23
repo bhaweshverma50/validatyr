@@ -1,9 +1,13 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
 import '../../services/supabase_service.dart';
+import '../../services/pdf_export_service.dart';
 
 class _ScoreGaugePainter extends CustomPainter {
   final double score;
@@ -79,6 +83,29 @@ class _ResultsScreenState extends State<ResultsScreen> {
       await SupabaseService.insert(idea, widget.result);
     } catch (e) {
       debugPrint('ResultsScreen Supabase save error (non-fatal): $e');
+    }
+  }
+
+  bool _isExporting = false;
+
+  Future<void> _exportPdf() async {
+    setState(() => _isExporting = true);
+    try {
+      final bytes = await PdfExportService.generateReport(widget.result);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/Validatyr-Report.pdf');
+      await file.writeAsBytes(bytes);
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/pdf')],
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
     }
   }
 
@@ -533,6 +560,22 @@ class _ResultsScreenState extends State<ResultsScreen> {
           'RESULTS',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, letterSpacing: 1.5),
         ),
+        actions: [
+          _isExporting
+              ? const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                  ),
+                )
+              : IconButton(
+                  icon: const Icon(LucideIcons.download),
+                  tooltip: 'Export PDF',
+                  onPressed: _exportPdf,
+                ),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(

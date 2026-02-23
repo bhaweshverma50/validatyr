@@ -86,12 +86,17 @@ class ApiService {
       final uri = Uri.parse('$_baseUrl/transcribe');
       final request = http.MultipartRequest('POST', uri);
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
-      final response = await request.send();
+      final response = await request.send().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () => throw TimeoutException('Transcription request timed out'),
+      );
       if (response.statusCode == 200) {
         final body = await response.stream.bytesToString();
         return (jsonDecode(body) as Map<String, dynamic>)['transcript'] as String?;
       }
-    } catch (_) {}
+    } catch (e) {
+      // ignore, caller handles null return
+    }
     return null;
   }
 }

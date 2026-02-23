@@ -13,6 +13,7 @@ from services.ai_analyzer import (
     OpportunityScoreBreakdown,
 )
 from services.discovery import discover_competitors_and_scrape
+from services.community_scraper import CommunityScraperService
 from services.audio_processor import transcribe_audio
 from services.db import save_validation_result
 import asyncio
@@ -39,6 +40,13 @@ _DISCOVERY_MESSAGES = {
     "hardware": "Searching Kickstarter, Amazon, YC Hardware portfolio...",
     "fintech": "Searching App Store, YC FinTech, CB Insights, Crunchbase...",
     "saas_web": "Searching ProductHunt, G2, Capterra, YC SaaS portfolio...",
+}
+
+_COMMUNITY_MESSAGES = {
+    "mobile_app": "Scraping Reddit, HN, Twitter & Product Hunt for real user signals...",
+    "hardware": "Scraping Reddit hardware forums, HN, and maker communities...",
+    "fintech": "Scraping r/fintech, HN, Twitter & G2 for real user signals...",
+    "saas_web": "Scraping Reddit, HN, Twitter, Product Hunt & G2 reviews...",
 }
 
 _RESEARCHER_MESSAGES = {
@@ -98,11 +106,20 @@ async def validate_idea(request: ValidationRequest):
         
     if not reviews:
         raise HTTPException(status_code=404, detail="No competitors found or failed to scrape reviews. Try providing specific App IDs.")
-        
+
+    # Community scraping
+    category = request.category or "mobile_app"
+    community_result = CommunityScraperService(category).scrape_all(
+        competitor_names=[c.get("title", "") for c in competitors_meta],
+        idea_keywords=request.idea,
+    )
+    community_text = _json.dumps([p.model_dump() for p in community_result.posts[:50]])
+    logger.info(f"Community scraping: {community_result.total_posts} posts from {community_result.sources_succeeded}")
+
     try:
         # Pass the concatenated reviews to the Multi-Agent validation engine
         logger.info(f"Starting Multi-Agent analysis for idea: {request.idea[:50]}...")
-        result = analyze_reviews_multi_agent(request.idea, reviews, competitors_meta, request.model_provider, request.category or "mobile_app")
+        result = analyze_reviews_multi_agent(request.idea, reviews, competitors_meta, request.model_provider, category, community_data=community_text)
         
         # Save to database (will mock if Supabase credentials are not set)
         save_validation_result(request.idea, result.model_dump())
@@ -122,7 +139,7 @@ async def validate_idea_stream(request: ValidationRequest):
         loop = asyncio.get_running_loop()
         idea = request.idea
         user_category = request.category
-        total_steps = 5
+        total_steps = 6
 
         try:
             api_key = os.getenv("GEMINI_API_KEY")
@@ -176,11 +193,33 @@ async def validate_idea_stream(request: ValidationRequest):
                 yield {"event": "error", "data": _json.dumps({"message": "No competitors found. Try adding more detail about your idea."})}
                 return
 
-            # ── Step 3: Researcher Agent ──────────────────────────────────
+            # ── Step 3: Community Scraping ─────────────────────────────────
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Community Scanner",
+                "message": _COMMUNITY_MESSAGES.get(category, "Scraping community forums for real user signals..."),
+                "step": 3, "total": total_steps,
+            })}
+
+            community_result = await loop.run_in_executor(
+                _executor,
+                lambda: CommunityScraperService(category).scrape_all(
+                    competitor_names=[c.get("title", "") for c in competitors_meta],
+                    idea_keywords=idea,
+                ),
+            )
+            community_text = _json.dumps([p.model_dump() for p in community_result.posts[:50]])
+
+            yield {"event": "status", "data": _json.dumps({
+                "agent": "Community Scanner",
+                "message": f"Scraped {community_result.total_posts} posts from {len(community_result.sources_succeeded)} sources.",
+                "step": 3, "total": total_steps,
+            })}
+
+            # ── Step 4: Researcher Agent ──────────────────────────────────
             yield {"event": "status", "data": _json.dumps({
                 "agent": "Researcher Agent",
                 "message": _RESEARCHER_MESSAGES.get(category, "Researching market..."),
-                "step": 3, "total": total_steps,
+                "step": 4, "total": total_steps,
             })}
 
             reviews_sample = reviews[:200]
@@ -197,20 +236,20 @@ async def validate_idea_stream(request: ValidationRequest):
 
             researcher_result = await loop.run_in_executor(
                 _executor,
-                lambda: run_researcher_agent(client, idea, reviews_text, category),
+                lambda: run_researcher_agent(client, idea, reviews_text, category, community_text),
             )
 
             yield {"event": "status", "data": _json.dumps({
                 "agent": "Researcher Agent",
                 "message": f"Found {len(researcher_result.what_users_hate)} pain points, {len(researcher_result.community_signals)} community signals.",
-                "step": 3, "total": total_steps,
+                "step": 4, "total": total_steps,
             })}
 
-            # ── Step 4: PM Agent ──────────────────────────────────────────
+            # ── Step 5: PM Agent ──────────────────────────────────────────
             yield {"event": "status", "data": _json.dumps({
                 "agent": "PM Agent",
                 "message": "Building Day-1 MVP roadmap from pain points...",
-                "step": 4, "total": total_steps,
+                "step": 5, "total": total_steps,
             })}
 
             pm_result = await loop.run_in_executor(
@@ -221,14 +260,14 @@ async def validate_idea_stream(request: ValidationRequest):
             yield {"event": "status", "data": _json.dumps({
                 "agent": "PM Agent",
                 "message": f"MVP roadmap ready — {len(pm_result.mvp_roadmap)} features.",
-                "step": 4, "total": total_steps,
+                "step": 5, "total": total_steps,
             })}
 
-            # ── Step 5: Market Intelligence ───────────────────────────────
+            # ── Step 6: Market Intelligence ───────────────────────────────
             yield {"event": "status", "data": _json.dumps({
                 "agent": "Market Intelligence",
                 "message": "Researching TAM/SAM/SOM, funded competitors, GTM strategy...",
-                "step": 5, "total": total_steps,
+                "step": 6, "total": total_steps,
             })}
 
             market_result = await loop.run_in_executor(
@@ -279,7 +318,7 @@ async def validate_idea_stream(request: ValidationRequest):
             yield {"event": "status", "data": _json.dumps({
                 "agent": "Market Intelligence",
                 "message": f"Score: {opportunity_score}/100 · TAM: {(market_result.tam or '')[:50]}",
-                "step": 5, "total": total_steps,
+                "step": 6, "total": total_steps,
             })}
 
             yield {"event": "result", "data": final_result.model_dump_json()}

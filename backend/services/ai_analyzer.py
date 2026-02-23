@@ -125,7 +125,7 @@ class IdeaValidationResult(BaseModel):
 
 # --- Multi-Agent Orchestrator ---
 
-def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], competitors_meta: List[Dict[str, Any]] = None, model_provider: str = "gemini", category: str = "mobile_app") -> IdeaValidationResult:
+def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], competitors_meta: List[Dict[str, Any]] = None, model_provider: str = "gemini", category: str = "mobile_app", community_data: str = "") -> IdeaValidationResult:
     """Orchestrates the Multi-Agent pipeline to validate the app idea."""
     if not reviews:
         raise ValueError("No reviews provided for analysis.")
@@ -141,7 +141,7 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
     reviews_text = json.dumps([{"rating": r["score"], "review": r["content"]} for r in reviews_sample])
 
     logger.info("Agent 1 (Researcher) is spinning up...")
-    researcher_result = run_researcher_agent(client, app_idea, reviews_text, category)
+    researcher_result = run_researcher_agent(client, app_idea, reviews_text, category, community_data)
     
     logger.info("Agent 2 (Product Manager) is spinning up...")
     pm_result = run_pm_agent(client, app_idea, researcher_result)
@@ -204,15 +204,30 @@ def analyze_reviews_multi_agent(app_idea: str, reviews: List[Dict[str, Any]], co
 
 # --- Individual Agents ---
 
-def _researcher_prompt(idea: str, reviews_text: str, category: str) -> str:
+def _researcher_prompt(idea: str, reviews_text: str, category: str, community_data: str = "") -> str:
     """Build a category-specific researcher prompt for the Gemini researcher agent.
 
     Routes to hardware, fintech, saas_web, or mobile_app (default) prompt templates.
     """
     base = f'Startup idea: "{idea}"\n\n'
 
+    # When real scraped community data is available, inject it as a priority section
+    community_section = ""
+    if community_data:
+        community_section = f"""
+
+── REAL SCRAPED COMMUNITY DATA ──
+The following posts, comments, and reviews were scraped directly from Reddit,
+HackerNews, Twitter/X, Product Hunt, and review sites. Use these as PRIMARY
+evidence for community_signals. Include direct quotes with [source] attribution.
+
+{community_data}
+
+You may still use Google Search to supplement, but prioritize the real data above.
+"""
+
     if category == "hardware":
-        return base + f"""You are a hardware market researcher with Google Search access.
+        return base + community_section + f"""You are a hardware market researcher with Google Search access.
 Competitor data: {reviews_text}
 
 Search and analyze:
@@ -225,7 +240,7 @@ Search and analyze:
 Return JSON: {{"what_users_love": [5 positives], "what_users_hate": [5 pain points or manufacturing challenges], "community_signals": [5 forum/community insights]}}"""
 
     if category == "fintech":
-        return base + f"""You are a FinTech market researcher with Google Search access.
+        return base + community_section + f"""You are a FinTech market researcher with Google Search access.
 Competitor app reviews and data: {reviews_text}
 
 Search and analyze:
@@ -238,7 +253,7 @@ Search and analyze:
 Return JSON: {{"what_users_love": [5 positives], "what_users_hate": [5 pain points + compliance hurdles], "community_signals": [5 fintech-specific insights]}}"""
 
     if category == "saas_web":
-        return base + f"""You are a SaaS market researcher with Google Search access.
+        return base + community_section + f"""You are a SaaS market researcher with Google Search access.
 Competitor data: {reviews_text}
 
 Search and analyze:
@@ -254,7 +269,7 @@ Return JSON: {{"what_users_love": [5 positives], "what_users_hate": [5 pain poin
     if category not in ("mobile_app", "hardware", "fintech", "saas_web"):
         logger.warning("Unknown category '%s' in _researcher_prompt — using mobile_app defaults", category)
 
-    return base + f"""You are an expert App Market Researcher with live access to Google Search.
+    return base + community_section + f"""You are an expert App Market Researcher with live access to Google Search.
 
 Task — gather signal from ALL of the following sources:
 
@@ -275,8 +290,8 @@ SCRAPED APP STORE REVIEWS:
 {reviews_text}"""
 
 
-def run_researcher_agent(client: genai.Client, idea: str, reviews_text: str, category: Literal["mobile_app", "hardware", "fintech", "saas_web"] = "mobile_app") -> ResearcherOutput:
-    prompt = _researcher_prompt(idea, reviews_text, category)
+def run_researcher_agent(client: genai.Client, idea: str, reviews_text: str, category: Literal["mobile_app", "hardware", "fintech", "saas_web"] = "mobile_app", community_data: str = "") -> ResearcherOutput:
+    prompt = _researcher_prompt(idea, reviews_text, category, community_data)
     response = client.models.generate_content(
         model='gemini-3-flash-preview',
         contents=prompt,

@@ -45,6 +45,8 @@ dependencies:
   lucide_icons: ^0.257.0
   path_provider: ^2.1.5
   mime: ^2.0.0
+  pdf: ^3.11.1
+  share_plus: ^10.1.4
 
 dev_dependencies:
   flutter_test:
