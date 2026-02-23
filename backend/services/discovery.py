@@ -66,7 +66,59 @@ def _discover_web_startups(client: genai.Client, idea: str, query: str) -> List[
         for s in result.startups
     ]
 
-def discover_competitors_and_scrape(app_idea: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def _discover_hardware_competitors(client: genai.Client, idea: str) -> tuple[list, list]:
+    """Hardware ideas: searches Kickstarter, Amazon, YC hardware via Google Search grounding."""
+    from google.genai import types
+    prompt = f"""You are a hardware startup researcher. For: "{idea}"
+Search for similar products on: Kickstarter/Indiegogo, Amazon, YC Hardware portfolio, funded startups.
+Return up to 8 competitors as JSON array:
+[{{"title": "...", "url": "...", "source": "kickstarter|amazon|ycombinator|web",
+  "description": "...", "funding_hint": "..."}}]"""
+    response = client.models.generate_content(
+        model="gemini-2.0-flash", contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.2, tools=[types.Tool(google_search=types.GoogleSearch())],
+        ),
+    )
+    import json as _json, re
+    match = re.search(r'\[.*\]', response.text, re.DOTALL)
+    if not match:
+        return [], []
+    competitors = _json.loads(match.group())
+    metas = [{"app_id": c.get("url",""), "title": c.get("title",""), "score": 0.0,
+               "icon": "", "platform": "hardware", "source": c.get("source","web"),
+               "description": c.get("description",""), "funding_hint": c.get("funding_hint","")}
+              for c in competitors[:8]]
+    return [], metas  # no app-store reviews for hardware
+
+
+def _discover_saas_competitors(client: genai.Client, idea: str) -> tuple[list, list]:
+    """SaaS/web ideas: searches ProductHunt, G2, Capterra, YC via Google Search."""
+    from google.genai import types
+    prompt = f"""You are a SaaS market researcher. For: "{idea}"
+Search ProductHunt, G2 alternatives, Capterra, YC SaaS portfolio, Crunchbase funded competitors.
+Return up to 8 competitors as JSON array:
+[{{"title": "...", "url": "...", "source": "product_hunt|g2|ycombinator|web",
+  "description": "...", "pricing_hint": "..."}}]"""
+    response = client.models.generate_content(
+        model="gemini-2.0-flash", contents=prompt,
+        config=types.GenerateContentConfig(
+            temperature=0.2, tools=[types.Tool(google_search=types.GoogleSearch())],
+        ),
+    )
+    import json as _json, re
+    match = re.search(r'\[.*\]', response.text, re.DOTALL)
+    if not match:
+        return [], []
+    competitors = _json.loads(match.group())
+    metas = [{"app_id": c.get("url",""), "title": c.get("title",""), "score": 0.0,
+               "icon": "", "platform": "web", "source": c.get("source","web"),
+               "description": c.get("description","")}
+              for c in competitors[:8]]
+    return [], metas
+
+
+def discover_competitors_and_scrape(app_idea: str, category: str = "mobile_app") -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Agent 0: Discovery Agent.
     Uses an LLM to generate a search query, searches the Play Store for the top 3 competitors,
@@ -78,7 +130,13 @@ def discover_competitors_and_scrape(app_idea: str) -> Tuple[List[Dict[str, Any]]
         raise ValueError("GEMINI_API_KEY environment variable not set. Please add it to your .env file.")
         
     client = genai.Client(api_key=api_key)
-    
+
+    if category == "hardware":
+        return _discover_hardware_competitors(client, app_idea)
+    if category == "saas_web":
+        return _discover_saas_competitors(client, app_idea)
+    # mobile_app and fintech: run existing app store + web discovery (unchanged)
+
     # 1. Generate the optimal search query
     logger.info("Agent 0 (Discovery) is analyzing the idea to formulate a search query...")
     prompt = f"""
