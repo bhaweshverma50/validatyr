@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/custom_theme.dart';
-import 'features/home/home_screen.dart';
+import 'features/shell/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,7 +29,7 @@ class IdeaValidatorApp extends StatelessWidget {
       title: 'Validatyr',
       theme: RetroTheme.themeData,
       debugShowCheckedModeBanner: false,
-      home: const HomeScreen(),
+      home: const AppShell(),
     );
   }
 }
