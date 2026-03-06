@@ -1,0 +1,104 @@
+"""APScheduler integration for scheduled research jobs.
+
+Manages cron-style jobs for saved research topics. Each topic with a
+schedule_cron ('daily' or 'weekly') gets an APScheduler job that triggers
+the research pipeline on schedule.
+
+Runs in-process within the FastAPI server — no Redis/Celery needed.
+"""
+
+import logging
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+from services.research_db import list_research_topics, get_research_topic
+from services.research_pipeline import run_research_pipeline
+
+logger = logging.getLogger(__name__)
+
+_scheduler: AsyncIOScheduler | None = None
+
+
+def get_scheduler() -> AsyncIOScheduler:
+    global _scheduler
+    if _scheduler is None:
+        _scheduler = AsyncIOScheduler()
+    return _scheduler
+
+
+def start_scheduler() -> None:
+    scheduler = get_scheduler()
+    if scheduler.running:
+        return
+    topics = list_research_topics()
+    for topic in topics:
+        if topic.get("is_active") and topic.get("schedule_cron"):
+            _add_topic_job(topic)
+    scheduler.start()
+    logger.info(f"Research scheduler started with {len(scheduler.get_jobs())} jobs.")
+
+
+def shutdown_scheduler() -> None:
+    global _scheduler
+    if _scheduler and _scheduler.running:
+        _scheduler.shutdown(wait=False)
+        logger.info("Research scheduler shut down.")
+    _scheduler = None
+
+
+def schedule_topic(topic: dict) -> None:
+    scheduler = get_scheduler()
+    topic_id = topic.get("id", "")
+    job_id = f"research_{topic_id}"
+    if scheduler.get_job(job_id):
+        scheduler.remove_job(job_id)
+    if topic.get("is_active") and topic.get("schedule_cron"):
+        _add_topic_job(topic)
+        logger.info(f"Scheduled research job for topic {topic_id}: {topic.get('schedule_cron')}")
+
+
+def unschedule_topic(topic_id: str) -> None:
+    scheduler = get_scheduler()
+    job_id = f"research_{topic_id}"
+    if scheduler.get_job(job_id):
+        scheduler.remove_job(job_id)
+        logger.info(f"Unscheduled research job for topic {topic_id}")
+
+
+def _add_topic_job(topic: dict) -> None:
+    scheduler = get_scheduler()
+    topic_id = topic.get("id", "")
+    schedule = topic.get("schedule_cron", "")
+    if schedule == "daily":
+        trigger = CronTrigger(hour=6, minute=0)
+    elif schedule == "weekly":
+        trigger = CronTrigger(day_of_week="mon", hour=6, minute=0)
+    else:
+        return
+    scheduler.add_job(
+        _execute_research_job,
+        trigger=trigger,
+        id=f"research_{topic_id}",
+        args=[topic_id],
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
+
+def _execute_research_job(topic_id: str) -> None:
+    topic = get_research_topic(topic_id)
+    if not topic:
+        logger.warning(f"Scheduled research job for unknown topic {topic_id}")
+        return
+    if not topic.get("is_active", True):
+        logger.info(f"Skipping inactive topic {topic_id}")
+        return
+    try:
+        run_research_pipeline(
+            domain=topic.get("domain", "general"),
+            keywords=topic.get("keywords", []),
+            interests=topic.get("interests", []),
+            topic_id=topic_id,
+        )
+    except Exception as e:
+        logger.error(f"Scheduled research job failed for topic {topic_id}: {e}")
