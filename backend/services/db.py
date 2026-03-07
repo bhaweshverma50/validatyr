@@ -57,3 +57,19 @@ def save_validation_result(idea: str, result: dict) -> dict:
     except Exception as e:
         logger.error(f"Error saving to Supabase: {e}")
         return {"status": "error", "message": str(e)}
+
+def send_notification(type: str, title: str, body: str, metadata: dict | None = None):
+    """Insert a notification row into Supabase (triggers Realtime for frontend)."""
+    supabase = get_supabase()
+    if not supabase:
+        logger.info(f"[MOCKED] Notification: {type} — {title}")
+        return
+    try:
+        supabase.table("notifications").insert({
+            "type": type,
+            "title": title,
+            "body": body,
+            "metadata": metadata or {},
+        }).execute()
+    except Exception as e:
+        logger.warning(f"Failed to send notification: {e}")
