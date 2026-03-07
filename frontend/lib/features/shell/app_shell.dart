@@ -4,6 +4,8 @@ import '../home/home_screen.dart';
 import '../research/research_dashboard_screen.dart';
 import '../history/history_screen.dart';
 import '../../core/theme/custom_theme.dart';
+import '../../services/notification_service.dart';
+import '../notifications/notification_center_screen.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -79,51 +81,96 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           bottom: bottomPadding > 0 ? bottomPadding : 6,
         ),
         child: Row(
-          children: List.generate(_tabs.length, (i) {
-            final tab = _tabs[i];
-            final isActive = _currentIndex == i;
-            return Expanded(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _onTabTapped(i),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.symmetric(horizontal: 12),
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  decoration: BoxDecoration(
-                    color: isActive ? tab.color : Colors.transparent,
-                    borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
-                    border: Border.all(
-                      color: isActive ? RetroTheme.border : Colors.transparent,
-                      width: RetroTheme.borderWidthMedium,
+          children: [
+            ...List.generate(_tabs.length, (i) {
+              final tab = _tabs[i];
+              final isActive = _currentIndex == i;
+              return Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _onTabTapped(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isActive ? tab.color : Colors.transparent,
+                      borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
+                      border: Border.all(
+                        color: isActive ? RetroTheme.border : Colors.transparent,
+                        width: RetroTheme.borderWidthMedium,
+                      ),
+                      boxShadow: isActive
+                          ? const [BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0)]
+                          : null,
                     ),
-                    boxShadow: isActive
-                        ? const [BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0)]
-                        : null,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        tab.icon,
-                        size: 20,
-                        color: isActive ? Colors.black : Colors.black38,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        tab.label,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
-                          color: isActive ? Colors.black : Colors.black45,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          tab.icon,
+                          size: 20,
+                          color: isActive ? Colors.black : Colors.black38,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          tab.label,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+                            color: isActive ? Colors.black : Colors.black45,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
+            // Notification bell
+            StreamBuilder<int>(
+              stream: NotificationService.instance.unreadCountStream,
+              initialData: NotificationService.instance.unreadCount,
+              builder: (context, snapshot) {
+                final count = snapshot.data ?? 0;
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Icon(LucideIcons.bell, size: 20, color: count > 0 ? Colors.black : Colors.black38),
+                        if (count > 0)
+                          Positioned(
+                            right: -6,
+                            top: -4,
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                color: RetroTheme.pink,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.black, width: 1.5),
+                              ),
+                              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                              child: Text(
+                                count > 9 ? '9+' : '$count',
+                                style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.black),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
