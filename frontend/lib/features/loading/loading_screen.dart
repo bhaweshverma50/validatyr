@@ -6,7 +6,6 @@ import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
 import '../../services/api_service.dart';
 import '../results/results_screen.dart';
-import '../history/history_screen.dart';
 
 class _AgentStep {
   final String name;
@@ -451,11 +450,9 @@ class _LoadingScreenState extends State<LoadingScreen>
               text: 'Check History',
               color: RetroTheme.mint,
               onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HistoryScreen()),
-                );
+                // Pop back to AppShell — the History tab's auto-refresh
+                // will pick up the result once the backend finishes saving.
+                Navigator.popUntil(context, (route) => route.isFirst);
               },
               icon: const Icon(LucideIcons.history,
                   color: Colors.black, size: 20),
