@@ -69,15 +69,43 @@ def unschedule_topic(topic_id: str) -> None:
         logger.info(f"Unscheduled research job for topic {topic_id}")
 
 
+_DOW_MAP = {1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat", 7: "sun"}
+
+
+def _parse_schedule(schedule: str) -> CronTrigger | None:
+    """Parse schedule string into a CronTrigger.
+
+    Formats:
+      - "daily|HH:MM"          → every day at HH:MM
+      - "weekly|DAY_NUM|HH:MM" → every week on DAY (1=Mon..7=Sun) at HH:MM
+      - "daily" (legacy)        → every day at 06:00
+      - "weekly" (legacy)       → every Monday at 06:00
+    """
+    parts = schedule.split("|")
+    kind = parts[0]
+
+    if kind == "daily":
+        if len(parts) >= 2:
+            h, m = parts[1].split(":")
+            return CronTrigger(hour=int(h), minute=int(m))
+        return CronTrigger(hour=6, minute=0)
+
+    if kind == "weekly":
+        if len(parts) >= 3:
+            dow = _DOW_MAP.get(int(parts[1]), "mon")
+            h, m = parts[2].split(":")
+            return CronTrigger(day_of_week=dow, hour=int(h), minute=int(m))
+        return CronTrigger(day_of_week="mon", hour=6, minute=0)
+
+    return None
+
+
 def _add_topic_job(topic: dict) -> None:
     scheduler = get_scheduler()
     topic_id = topic.get("id", "")
     schedule = topic.get("schedule_cron", "")
-    if schedule == "daily":
-        trigger = CronTrigger(hour=6, minute=0)
-    elif schedule == "weekly":
-        trigger = CronTrigger(day_of_week="mon", hour=6, minute=0)
-    else:
+    trigger = _parse_schedule(schedule)
+    if trigger is None:
         return
     scheduler.add_job(
         _execute_research_job,

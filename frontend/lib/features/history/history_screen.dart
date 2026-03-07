@@ -132,21 +132,19 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: RetroTheme.background,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black, size: 28),
         title: const Text('HISTORY',
             style: TextStyle(
+                fontFamily: 'Outfit',
                 color: Colors.black,
                 fontWeight: FontWeight.w900,
-                letterSpacing: 1.5)),
+                fontSize: RetroTheme.fontDisplay,
+                letterSpacing: -0.5)),
         actions: [
           if (_items.isNotEmpty)
             IconButton(
-                icon: const Icon(LucideIcons.trash2, color: Colors.black),
+                icon: const Icon(LucideIcons.trash2),
                 tooltip: 'Delete All',
                 onPressed: _deleteAll),
-          const SizedBox(width: 8),
         ],
       ),
       body: _buildBody(),
@@ -208,9 +206,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: RetroTheme.contentPaddingMobile,
+        vertical: RetroTheme.spacingMd,
+      ),
       itemCount: _items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
+      separatorBuilder: (_, __) => const SizedBox(height: RetroTheme.spacingMd),
       itemBuilder: (_, i) => _buildItem(_items[i]),
     );
   }

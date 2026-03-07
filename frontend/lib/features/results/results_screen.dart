@@ -553,12 +553,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: RetroTheme.background,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black, size: 28),
+        leading: IconButton(
+          icon: const Icon(LucideIcons.arrowLeft),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const Text(
           'RESULTS',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w900,
+            fontSize: RetroTheme.fontXl,
+          ),
         ),
         actions: [
           _isExporting

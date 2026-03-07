@@ -5,8 +5,8 @@ import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
 import '../../services/api_service.dart';
-import '../../services/supabase_service.dart';
 import '../results/results_screen.dart';
+import '../history/history_screen.dart';
 
 class _AgentStep {
   final String name;
@@ -30,7 +30,7 @@ class LoadingScreen extends StatefulWidget {
 }
 
 class _LoadingScreenState extends State<LoadingScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const _categoryLabels = {
     'mobile_app': 'Mobile App',
     'hardware':   'Hardware',
@@ -49,11 +49,13 @@ class _LoadingScreenState extends State<LoadingScreen>
   late Animation<double> _progressAnim;
   bool _hasError = false;
   bool _hasResult = false;
+  bool _wasBackgrounded = false;
   String _errorMessage = '';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _progressCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 600));
     _progressAnim = Tween<double>(begin: 0, end: 0).animate(
@@ -70,9 +72,27 @@ class _LoadingScreenState extends State<LoadingScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sub?.cancel();
     _progressCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _wasBackgrounded = true;
+    }
+    if (state == AppLifecycleState.resumed && _wasBackgrounded && !_hasResult) {
+      _wasBackgrounded = false;
+      // Stream likely broke while backgrounded — show friendly recovery message
+      if (!_hasError && mounted) {
+        _setError(
+          'The app was suspended while analysing. '
+          'Your result may still have been saved — check History.',
+        );
+      }
+    }
   }
 
   void _animateTo(double target) {
@@ -91,7 +111,10 @@ class _LoadingScreenState extends State<LoadingScreen>
       onError: (e) => _setError(e.toString()),
       onDone: () {
         if (mounted && !_hasError && !_hasResult) {
-          _setError('Connection closed unexpectedly. Please try again.');
+          _setError(
+            'Connection closed unexpectedly. '
+            'If analysis was in progress, results may still be saved — check History.',
+          );
         }
       },
       cancelOnError: true,
@@ -146,16 +169,8 @@ class _LoadingScreenState extends State<LoadingScreen>
   Future<void> _saveAndNavigate(Map<String, dynamic> data) async {
     // Brief delay so the progress bar animation reaches 100% visually
     await Future.delayed(const Duration(milliseconds: 400));
-    try {
-      await SupabaseService.insert(widget.idea, data);
-    } catch (e) {
-      debugPrint('Supabase save error (non-fatal): $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('History save failed: $e')),
-        );
-      }
-    }
+    // Backend now saves to Supabase before sending the result event,
+    // so we skip the client-side save to avoid duplicates.
     if (!mounted) return;
     Navigator.pushReplacement(
       context,
@@ -429,6 +444,20 @@ class _LoadingScreenState extends State<LoadingScreen>
               color: RetroTheme.yellow,
               onPressed: () => Navigator.pop(context),
               icon: const Icon(LucideIcons.refreshCw,
+                  color: Colors.black, size: 20),
+            ),
+            const SizedBox(height: 10),
+            RetroButton(
+              text: 'Check History',
+              color: RetroTheme.mint,
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                );
+              },
+              icon: const Icon(LucideIcons.history,
                   color: Colors.black, size: 20),
             ),
           ]),

@@ -321,6 +321,12 @@ async def validate_idea_stream(request: ValidationRequest):
                 "step": 6, "total": total_steps,
             })}
 
+            # Save to DB before sending result — ensures persistence even if client disconnects
+            try:
+                save_validation_result(idea, final_result.model_dump())
+            except Exception as db_err:
+                logger.warning(f"Failed to save validation result: {db_err}")
+
             yield {"event": "result", "data": final_result.model_dump_json()}
 
         except Exception as e:

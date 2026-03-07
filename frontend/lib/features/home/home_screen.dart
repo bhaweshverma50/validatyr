@@ -7,7 +7,6 @@ import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
 import '../../services/api_service.dart';
 import '../loading/loading_screen.dart';
-import '../history/history_screen.dart';
 
 typedef _CategoryEntry = ({String? id, String label, IconData icon});
 
@@ -260,20 +259,6 @@ class _HomeScreenState extends State<HomeScreen>
 
     return Scaffold(
       backgroundColor: RetroTheme.background,
-      appBar: AppBar(
-        backgroundColor: RetroTheme.background,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.history, color: Colors.black, size: 22),
-            tooltip: 'History',
-            onPressed: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const HistoryScreen())),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -285,7 +270,7 @@ class _HomeScreenState extends State<HomeScreen>
                   horizontal: horizontalPadding, vertical: 0),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: screenHeight - kToolbarHeight - 80,
+                  minHeight: screenHeight - 80,
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,

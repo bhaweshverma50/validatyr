@@ -45,9 +45,7 @@ class ReportDetailScreen extends StatelessWidget {
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => LoadingScreen(idea: ideaText),
-      ),
+      MaterialPageRoute(builder: (_) => LoadingScreen(idea: ideaText)),
     );
   }
 
@@ -59,77 +57,89 @@ class ReportDetailScreen extends StatelessWidget {
       (report['ideas'] as List?)?.map((e) => Map<String, dynamic>.from(e)) ?? [],
     );
     final sources = List<String>.from(report['data_sources'] ?? []);
-    final date = formatDate(report['generated_at']?.toString());
+    final dateTime = formatDateTime(report['generated_at']?.toString());
 
     return Scaffold(
       backgroundColor: RetroTheme.background,
       appBar: AppBar(
-        backgroundColor: RetroTheme.background,
-        elevation: 0,
         leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: Colors.black),
+          icon: const Icon(LucideIcons.arrowLeft),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('RESEARCH REPORT', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: 18)),
-            Text(date, style: const TextStyle(fontSize: 12, color: Colors.black54, fontWeight: FontWeight.normal)),
+            const Text('RESEARCH REPORT', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: RetroTheme.fontXl)),
+            Text(dateTime, style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54, fontWeight: FontWeight.normal)),
           ],
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(
+          horizontal: RetroTheme.contentPaddingMobile,
+          vertical: RetroTheme.spacingMd,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (summary.isNotEmpty) ...[
-              const Text('EXECUTIVE SUMMARY', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: 1)),
-              const SizedBox(height: 8),
+              const Text('EXECUTIVE SUMMARY', style: RetroTheme.sectionTitle),
+              const SizedBox(height: RetroTheme.spacingSm),
               RetroCard(
-                backgroundColor: RetroTheme.yellow.withValues(alpha: 0.2),
-                child: Text(summary, style: const TextStyle(fontSize: 14, height: 1.5)),
+                backgroundColor: const Color(0xFFFEF9C3),
+                padding: const EdgeInsets.all(RetroTheme.spacingMd),
+                child: Text(summary, style: const TextStyle(fontSize: RetroTheme.fontMd, height: 1.5)),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: RetroTheme.spacingLg),
             ],
 
             if (overview.isNotEmpty) ...[
-              const Text('MARKET OVERVIEW', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: 1)),
-              const SizedBox(height: 8),
+              const Text('MARKET OVERVIEW', style: RetroTheme.sectionTitle),
+              const SizedBox(height: RetroTheme.spacingSm),
               RetroCard(
-                child: Text(overview, style: const TextStyle(fontSize: 14, height: 1.5)),
+                padding: const EdgeInsets.all(RetroTheme.spacingMd),
+                child: Text(overview, style: const TextStyle(fontSize: RetroTheme.fontMd, height: 1.5)),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: RetroTheme.spacingLg),
             ],
 
-            Text(
-              'IDEAS (${ideas.length})',
-              style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: 1),
-            ),
-            const SizedBox(height: 8),
+            Text('IDEAS (${ideas.length})', style: RetroTheme.sectionTitle),
+            const SizedBox(height: RetroTheme.spacingSm),
             ...ideas.asMap().entries.map((entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.only(bottom: RetroTheme.spacingMd),
               child: _buildIdeaCard(context, entry.key + 1, entry.value),
             )),
 
             if (sources.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              const Text('DATA SOURCES', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: 14, letterSpacing: 1)),
-              const SizedBox(height: 8),
-              RetroCard(
-                backgroundColor: Colors.grey.shade100,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: sources.map((s) => Chip(
-                    label: Text(s, style: const TextStyle(fontSize: 12)),
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.black, width: 1),
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                  )).toList(),
+              const SizedBox(height: RetroTheme.spacingSm),
+              SizedBox(
+                width: double.infinity,
+                child: RetroCard(
+                  backgroundColor: Colors.white,
+                  padding: const EdgeInsets.all(RetroTheme.spacingMd),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('DATA SOURCES', style: RetroTheme.sectionTitle),
+                      const SizedBox(height: RetroTheme.spacingSm + 4),
+                      Wrap(
+                        spacing: RetroTheme.spacingSm,
+                        runSpacing: RetroTheme.spacingSm,
+                        children: sources.map((s) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: RetroTheme.background,
+                            borderRadius: BorderRadius.circular(RetroTheme.radiusSm),
+                            border: Border.all(color: Colors.black, width: RetroTheme.borderWidthMedium),
+                          ),
+                          child: Text(s, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                        )).toList(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: RetroTheme.spacingXl),
             ],
           ],
         ),
@@ -148,6 +158,7 @@ class ReportDetailScreen extends StatelessWidget {
     final monetization = idea['monetization_hint'] as String? ?? '';
 
     return RetroCard(
+      padding: const EdgeInsets.all(RetroTheme.spacingMd),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -160,39 +171,35 @@ class ReportDetailScreen extends StatelessWidget {
                   children: [
                     Text(
                       '$index. $name',
-                      style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: 16),
+                      style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: RetroTheme.fontLg),
                     ),
                     if (oneLiner.isNotEmpty)
-                      Text(oneLiner, style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                      Text(oneLiner, style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54)),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: RetroTheme.spacingMd),
               Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: RetroTheme.scoreColor(score),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.black, width: 2),
+                  borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
+                  border: Border.all(color: RetroTheme.border, width: RetroTheme.borderWidthMedium),
                 ),
                 child: Center(
-                  child: Text('${score.round()}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  child: Text('${score.round()}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: RetroTheme.spacingSm),
 
           if (trendType.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: _trendColor(trendType),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.black, width: 1.5),
-              ),
+              decoration: RetroTheme.badgeDecoration(_trendColor(trendType)),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -204,52 +211,52 @@ class ReportDetailScreen extends StatelessWidget {
             ),
 
           if (problem.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(problem, style: const TextStyle(fontSize: 13, height: 1.5)),
+            const SizedBox(height: RetroTheme.spacingSm + 2),
+            Text(problem, style: const TextStyle(fontSize: RetroTheme.fontSm, height: 1.5)),
           ],
 
           if (evidence.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Text('Why now:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            const SizedBox(height: RetroTheme.spacingSm + 2),
+            const Text('Why now:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: RetroTheme.fontSm)),
             ...evidence.map((e) => Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('• ', style: TextStyle(fontSize: 13)),
-                  Expanded(child: Text(e, style: const TextStyle(fontSize: 12, height: 1.4))),
+                  const Text('• ', style: TextStyle(fontSize: RetroTheme.fontSm)),
+                  Expanded(child: Text(e, style: const TextStyle(fontSize: RetroTheme.fontSm, height: 1.4))),
                 ],
               ),
             )),
           ],
 
           if (features.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Text('MVP Features:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            const SizedBox(height: RetroTheme.spacingSm + 2),
+            const Text('MVP Features:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: RetroTheme.fontSm)),
             ...features.map((f) => Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('• ', style: TextStyle(fontSize: 13)),
-                  Expanded(child: Text(f, style: const TextStyle(fontSize: 12, height: 1.4))),
+                  const Text('• ', style: TextStyle(fontSize: RetroTheme.fontSm)),
+                  Expanded(child: Text(f, style: const TextStyle(fontSize: RetroTheme.fontSm, height: 1.4))),
                 ],
               ),
             )),
           ],
 
           if (monetization.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: RetroTheme.spacingSm),
             Row(
               children: [
                 const Icon(LucideIcons.dollarSign, size: 14, color: Colors.black54),
                 const SizedBox(width: 4),
-                Expanded(child: Text(monetization, style: const TextStyle(fontSize: 12, color: Colors.black54))),
+                Expanded(child: Text(monetization, style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54))),
               ],
             ),
           ],
 
-          const SizedBox(height: 14),
+          const SizedBox(height: RetroTheme.spacingMd),
           Align(
             alignment: Alignment.centerRight,
             child: RetroButton(
