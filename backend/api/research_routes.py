@@ -213,3 +213,54 @@ async def validate_research_idea(idea_id: str, request: ValidateIdeaRequest):
         "category": category,
         "idea": idea,
     }
+
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+
+@router.get("/notifications")
+async def get_notifications(limit: int = 50, offset: int = 0):
+    """Fetch notifications, newest first."""
+    from services.db import get_supabase
+    supabase = get_supabase()
+    if not supabase:
+        return {"notifications": []}
+    try:
+        response = (
+            supabase.table("notifications")
+            .select("*")
+            .order("created_at", desc=True)
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+        return {"notifications": response.data or []}
+    except Exception as e:
+        logger.error(f"Error fetching notifications: {e}")
+        return {"notifications": []}
+
+
+@router.put("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: int):
+    from services.db import get_supabase
+    supabase = get_supabase()
+    if not supabase:
+        return {"status": "mocked"}
+    try:
+        supabase.table("notifications").update({"is_read": True}).eq("id", notification_id).execute()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/notifications/read-all")
+async def mark_all_notifications_read():
+    from services.db import get_supabase
+    supabase = get_supabase()
+    if not supabase:
+        return {"status": "mocked"}
+    try:
+        supabase.table("notifications").update({"is_read": True}).eq("is_read", False).execute()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
