@@ -15,7 +15,7 @@ from services.ai_analyzer import (
 from services.discovery import discover_competitors_and_scrape
 from services.community_scraper import CommunityScraperService
 from services.audio_processor import transcribe_audio
-from services.db import save_validation_result
+from services.db import save_validation_result, send_notification
 import asyncio
 import json as _json
 import os
@@ -123,7 +123,13 @@ async def validate_idea(request: ValidationRequest):
         
         # Save to database (will mock if Supabase credentials are not set)
         save_validation_result(request.idea, result.model_dump())
-        
+        send_notification(
+            type="validation_complete",
+            title="Validation Complete",
+            body=f"'{request.idea[:50]}' scored {result.opportunity_score}/100",
+            metadata={"score": result.opportunity_score},
+        )
+
         return result
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
@@ -324,6 +330,12 @@ async def validate_idea_stream(request: ValidationRequest):
             # Save to DB before sending result — ensures persistence even if client disconnects
             try:
                 save_validation_result(idea, final_result.model_dump())
+                send_notification(
+                    type="validation_complete",
+                    title="Validation Complete",
+                    body=f"'{idea[:50]}' scored {opportunity_score}/100",
+                    metadata={"score": opportunity_score},
+                )
             except Exception as db_err:
                 logger.warning(f"Failed to save validation result: {db_err}")
 
