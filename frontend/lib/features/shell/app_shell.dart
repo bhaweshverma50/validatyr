@@ -12,20 +12,51 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
+  final _historyKey = GlobalKey<HistoryScreenState>();
 
-  final _screens = const [
-    HomeScreen(),
-    ResearchDashboardScreen(),
-    HistoryScreen(),
-  ];
+  late final List<Widget> _screens;
 
   static const _tabs = [
     (icon: LucideIcons.home, label: 'Home', color: RetroTheme.pink),
     (icon: LucideIcons.microscope, label: 'Research', color: RetroTheme.lavender),
     (icon: LucideIcons.clock, label: 'History', color: RetroTheme.yellow),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _screens = [
+      const HomeScreen(),
+      const ResearchDashboardScreen(),
+      HistoryScreen(key: _historyKey),
+    ];
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When app resumes from background, refresh the history tab
+    // so results saved while the phone was locked appear immediately.
+    if (state == AppLifecycleState.resumed) {
+      _historyKey.currentState?.refresh();
+    }
+  }
+
+  void _onTabTapped(int i) {
+    setState(() => _currentIndex = i);
+    // Refresh history data every time the tab is selected
+    if (i == 2) {
+      _historyKey.currentState?.refresh();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +85,7 @@ class _AppShellState extends State<AppShell> {
             return Expanded(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () => setState(() => _currentIndex = i),
+                onTap: () => _onTabTapped(i),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   margin: const EdgeInsets.symmetric(horizontal: 12),

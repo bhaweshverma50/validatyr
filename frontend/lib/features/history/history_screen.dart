@@ -11,10 +11,10 @@ class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
+  State<HistoryScreen> createState() => HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
+class HistoryScreenState extends State<HistoryScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -25,22 +25,32 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  /// Called by AppShell when the History tab becomes active or app resumes.
+  void refresh() => _load(silent: true);
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
     try {
       final data = await SupabaseService.fetchHistory();
-      setState(() {
-        _items = data;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _items = data;
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -205,14 +215,18 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(
-        horizontal: RetroTheme.contentPaddingMobile,
-        vertical: RetroTheme.spacingMd,
+    return RefreshIndicator(
+      color: Colors.black,
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(
+          horizontal: RetroTheme.contentPaddingMobile,
+          vertical: RetroTheme.spacingMd,
+        ),
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: RetroTheme.spacingMd),
+        itemBuilder: (_, i) => _buildItem(_items[i]),
       ),
-      itemCount: _items.length,
-      separatorBuilder: (_, __) => const SizedBox(height: RetroTheme.spacingMd),
-      itemBuilder: (_, i) => _buildItem(_items[i]),
     );
   }
 
