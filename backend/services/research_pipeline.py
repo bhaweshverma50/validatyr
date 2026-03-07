@@ -24,7 +24,7 @@ from services.research_models import (
     TrendScoutOutput,
     MarketAnalystOutput,
     IdeaGeneratorOutput,
-    ResearchIdea,
+    ReportSummaryOutput,
     ResearchReport,
 )
 from services.research_db import (
@@ -63,9 +63,10 @@ def run_research_pipeline(
 
     try:
         # Step 1: Community Scraping
-        update_research_job(job_id, {"status": "running", "current_step": "community_scraping"})
+        update_research_job(job_id, {"status": "running", "current_step": "community_scraping", "progress_pct": 0})
         category = _DOMAIN_TO_CATEGORY.get(domain, "mobile_app")
         community_text = ""
+        community_succeeded = False
         try:
             scraper = CommunityScraperService(category)
             community_result = scraper.scrape_all(
@@ -73,28 +74,29 @@ def run_research_pipeline(
                 idea_keywords=" ".join(keywords),
             )
             community_text = json.dumps([p.model_dump() for p in community_result.posts[:50]])
+            community_succeeded = community_result.total_posts > 0
             logger.info(f"Research community scraping: {community_result.total_posts} posts")
         except Exception as e:
             logger.warning(f"Community scraping failed (continuing): {e}")
 
         # Step 2: Trend Scout Agent
-        update_research_job(job_id, {"current_step": "trend_scout", "status": "running"})
+        update_research_job(job_id, {"current_step": "trend_scout", "status": "running", "progress_pct": 20})
         logger.info("Research Agent 1 (Trend Scout) starting...")
         scout_result = _run_trend_scout(client, domain, keywords, interests, community_text)
 
         # Step 3: Market Analyst Agent
-        update_research_job(job_id, {"current_step": "market_analyst"})
+        update_research_job(job_id, {"current_step": "market_analyst", "progress_pct": 40})
         logger.info("Research Agent 2 (Market Analyst) starting...")
         analyst_result = _run_market_analyst(client, domain, keywords, scout_result)
 
         # Step 4: Idea Generator Agent
-        update_research_job(job_id, {"current_step": "idea_generator"})
+        update_research_job(job_id, {"current_step": "idea_generator", "progress_pct": 60})
         logger.info("Research Agent 3 (Idea Generator) starting...")
         ideas_result = _run_idea_generator(client, domain, keywords, interests, scout_result, analyst_result)
 
         # Step 5: Compile Report
-        update_research_job(job_id, {"current_step": "compiling_report"})
-        report = _compile_report(client, domain, keywords, scout_result, analyst_result, ideas_result, topic_id)
+        update_research_job(job_id, {"current_step": "compiling_report", "progress_pct": 80})
+        report = _compile_report(client, domain, keywords, scout_result, analyst_result, ideas_result, topic_id, community_succeeded)
 
         saved = save_research_report(report.model_dump())
         report_id = saved.get("data", {}).get("id", report.id)
@@ -102,6 +104,7 @@ def run_research_pipeline(
         update_research_job(job_id, {
             "status": "completed",
             "current_step": "done",
+            "progress_pct": 100,
             "report_id": report_id,
             "completed_at": datetime.now(timezone.utc).isoformat(),
         })
@@ -329,6 +332,7 @@ def _compile_report(
     analyst_result: MarketAnalystOutput,
     ideas_result: IdeaGeneratorOutput,
     topic_id: str,
+    community_succeeded: bool = False,
 ) -> ResearchReport:
     """Compile a research report with executive summary and market overview."""
     prompt = f"""Write a concise research report summary for the "{domain}" space (keywords: {", ".join(keywords)}).
@@ -352,21 +356,20 @@ Return JSON with:
         config=types.GenerateContentConfig(
             temperature=0.3,
             response_mime_type="application/json",
+            response_schema=ReportSummaryOutput,
         ),
     )
-    summary_data = json.loads(response.text)
+    summary_data = ReportSummaryOutput.model_validate_json(response.text)
 
-    data_sources = [
-        "Reddit", "HackerNews", "Twitter/X", "Product Hunt",
-        "TechCrunch", "Google Trends", "Crunchbase",
-        "App Store", "Play Store",
-    ]
+    data_sources = ["Google Search Grounding", "Gemini AI"]
+    if community_succeeded:
+        data_sources.extend(["Reddit", "HackerNews", "Twitter/X", "Product Hunt"])
 
     return ResearchReport(
         id=str(uuid.uuid4()),
         topic_id=topic_id,
-        executive_summary=summary_data.get("executive_summary", ""),
-        market_overview=summary_data.get("market_overview", ""),
+        executive_summary=summary_data.executive_summary,
+        market_overview=summary_data.market_overview,
         ideas=ideas_result.ideas,
         data_sources=data_sources,
         generated_at=datetime.now(timezone.utc),

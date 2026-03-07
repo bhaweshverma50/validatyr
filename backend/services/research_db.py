@@ -125,8 +125,8 @@ def save_research_report(report: dict) -> dict:
         return {"status": "error", "message": str(e)}
 
 
-def list_research_reports(topic_id: str) -> List[dict]:
-    """Fetch all reports for a topic, ordered by generated_at desc."""
+def list_research_reports(topic_id: str, limit: int = 20, offset: int = 0) -> List[dict]:
+    """Fetch reports for a topic, ordered by generated_at desc, with pagination."""
     supabase = get_supabase()
     if not supabase:
         return []
@@ -136,6 +136,7 @@ def list_research_reports(topic_id: str) -> List[dict]:
             .select("*")
             .eq("topic_id", topic_id)
             .order("generated_at", desc=True)
+            .range(offset, offset + limit - 1)
             .execute()
         )
         return response.data or []
@@ -169,6 +170,7 @@ def create_research_job(topic_id: str) -> dict:
         "id": job_id,
         "topic_id": topic_id,
         "status": "pending",
+        "progress_pct": 0,
         "started_at": datetime.now(timezone.utc).isoformat(),
     }
     if not supabase:
@@ -193,6 +195,26 @@ def update_research_job(job_id: str, updates: dict) -> None:
         supabase.table("research_jobs").update(updates).eq("id", job_id).execute()
     except Exception as e:
         logger.error(f"Error updating research job {job_id}: {e}")
+
+
+def get_latest_job_for_topic(topic_id: str) -> Optional[dict]:
+    """Fetch the most recent research job for a topic."""
+    supabase = get_supabase()
+    if not supabase:
+        return None
+    try:
+        response = (
+            supabase.table("research_jobs")
+            .select("*")
+            .eq("topic_id", topic_id)
+            .order("started_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
+    except Exception as e:
+        logger.error(f"Error fetching latest job for topic {topic_id}: {e}")
+        return None
 
 
 def get_research_job(job_id: str) -> Optional[dict]:

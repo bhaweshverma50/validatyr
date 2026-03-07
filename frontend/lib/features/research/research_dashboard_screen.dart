@@ -19,6 +19,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
   List<Map<String, dynamic>> _topics = [];
   bool _isLoading = true;
   String? _errorMessage;
+  final Map<String, Map<String, dynamic>> _topicJobs = {};
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
           _topics = topics;
           _isLoading = false;
         });
+        _loadJobStatuses();
       }
     } catch (e) {
       if (mounted) {
@@ -46,6 +48,19 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadJobStatuses() async {
+    for (final topic in _topics) {
+      final topicId = topic['id']?.toString() ?? '';
+      if (topicId.isEmpty) continue;
+      try {
+        final job = await ResearchApiService.getLatestJob(topicId);
+        if (mounted && job != null) {
+          setState(() => _topicJobs[topicId] = job);
+        }
+      } catch (_) {}
     }
   }
 
@@ -209,6 +224,10 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
     final keywords = List<String>.from(topic['keywords'] ?? []);
     final schedule = topic['schedule_cron'] as String?;
     final isActive = topic['is_active'] as bool? ?? true;
+    final topicId = topic['id']?.toString() ?? '';
+    final latestJob = _topicJobs[topicId];
+    final jobStatus = latestJob?['status'] as String?;
+    final jobStep = latestJob?['current_step'] as String?;
 
     return GestureDetector(
       onTap: () {
@@ -262,6 +281,14 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
                         const SizedBox(width: 6),
                         _buildBadge('Paused', RetroTheme.pink),
                       ],
+                      if (jobStatus == 'running' || jobStatus == 'pending') ...[
+                        const SizedBox(width: 6),
+                        _buildPulsingBadge(jobStep ?? 'starting...'),
+                      ],
+                      if (jobStatus == 'failed') ...[
+                        const SizedBox(width: 6),
+                        _buildBadge('Failed', Colors.red.shade300),
+                      ],
                     ],
                   ),
                 ],
@@ -270,6 +297,32 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
             const Icon(LucideIcons.chevronRight, color: Colors.black38),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPulsingBadge(String step) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: RetroTheme.mint,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Colors.black, width: 1.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 10,
+            height: 10,
+            child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.black),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            step.replaceAll('_', ' '),
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+          ),
+        ],
       ),
     );
   }

@@ -3,22 +3,12 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
+import '../../core/utils.dart';
 import '../loading/loading_screen.dart';
 
 class ReportDetailScreen extends StatelessWidget {
   final Map<String, dynamic> report;
   const ReportDetailScreen({super.key, required this.report});
-
-  String _formatDate(String? iso) {
-    if (iso == null) return '';
-    try {
-      final dt = DateTime.parse(iso);
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
-    } catch (_) {
-      return iso;
-    }
-  }
 
   Color _trendColor(String type) {
     switch (type) {
@@ -69,7 +59,7 @@ class ReportDetailScreen extends StatelessWidget {
       (report['ideas'] as List?)?.map((e) => Map<String, dynamic>.from(e)) ?? [],
     );
     final sources = List<String>.from(report['data_sources'] ?? []);
-    final date = _formatDate(report['generated_at']?.toString());
+    final date = formatDate(report['generated_at']?.toString());
 
     return Scaffold(
       backgroundColor: RetroTheme.background,

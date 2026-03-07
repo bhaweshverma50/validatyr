@@ -68,6 +68,12 @@ class MarketAnalystOutput(BaseModel):
     competition_landscape: str = Field(description="2-3 sentence overview of how crowded or open the space is.")
 
 
+class ReportSummaryOutput(BaseModel):
+    """Output from the Report Compiler — executive summary and market overview."""
+    executive_summary: str = Field(description="3-4 sentences summarizing the key opportunity landscape.")
+    market_overview: str = Field(description="3-4 sentences on macro trends, funding environment, and competitive dynamics.")
+
+
 class IdeaGeneratorOutput(BaseModel):
     """Output from the Idea Generator agent — the main deliverable."""
     ideas: List[ResearchIdea] = Field(description="5-10 concrete business/app ideas with scores and evidence.")

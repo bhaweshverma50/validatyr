@@ -7,12 +7,16 @@ the research pipeline on schedule.
 Runs in-process within the FastAPI server — no Redis/Celery needed.
 """
 
+import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from services.research_db import list_research_topics, get_research_topic
 from services.research_pipeline import run_research_pipeline
+
+_executor = ThreadPoolExecutor(max_workers=2)
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +89,7 @@ def _add_topic_job(topic: dict) -> None:
     )
 
 
-def _execute_research_job(topic_id: str) -> None:
+async def _execute_research_job(topic_id: str) -> None:
     topic = get_research_topic(topic_id)
     if not topic:
         logger.warning(f"Scheduled research job for unknown topic {topic_id}")
@@ -93,12 +97,16 @@ def _execute_research_job(topic_id: str) -> None:
     if not topic.get("is_active", True):
         logger.info(f"Skipping inactive topic {topic_id}")
         return
+    loop = asyncio.get_running_loop()
     try:
-        run_research_pipeline(
-            domain=topic.get("domain", "general"),
-            keywords=topic.get("keywords", []),
-            interests=topic.get("interests", []),
-            topic_id=topic_id,
+        await loop.run_in_executor(
+            _executor,
+            lambda: run_research_pipeline(
+                domain=topic.get("domain", "general"),
+                keywords=topic.get("keywords", []),
+                interests=topic.get("interests", []),
+                topic_id=topic_id,
+            ),
         )
     except Exception as e:
         logger.error(f"Scheduled research job failed for topic {topic_id}: {e}")

@@ -40,15 +40,21 @@ class ResearchApiService {
   }
 
   static Future<void> updateTopic(String topicId, Map<String, dynamic> updates) async {
-    await http.put(
+    final response = await http.put(
       Uri.parse('$_baseUrl/topics/$topicId'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(updates),
     );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update topic: ${response.body}');
+    }
   }
 
   static Future<void> deleteTopic(String topicId) async {
-    await http.delete(Uri.parse('$_baseUrl/topics/$topicId'));
+    final response = await http.delete(Uri.parse('$_baseUrl/topics/$topicId'));
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete topic: ${response.body}');
+    }
   }
 
   static Future<void> startResearch(String topicId) async {
@@ -73,6 +79,19 @@ class ResearchApiService {
 
   static Future<Map<String, dynamic>?> getReport(String reportId) async {
     final response = await http.get(Uri.parse('$_baseUrl/reports/$reportId'));
+    if (response.statusCode != 200) return null;
+    return jsonDecode(response.body);
+  }
+
+  static Future<Map<String, dynamic>?> getLatestJob(String topicId) async {
+    final response = await http.get(Uri.parse('$_baseUrl/topics/$topicId/latest-job'));
+    if (response.statusCode != 200) return null;
+    final data = jsonDecode(response.body);
+    return data['job'] as Map<String, dynamic>?;
+  }
+
+  static Future<Map<String, dynamic>?> getJobStatus(String jobId) async {
+    final response = await http.get(Uri.parse('$_baseUrl/status/$jobId'));
     if (response.statusCode != 200) return null;
     return jsonDecode(response.body);
   }
