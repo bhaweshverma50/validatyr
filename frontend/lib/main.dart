@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/custom_theme.dart';
 import 'features/shell/app_shell.dart';
+import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,10 @@ Future<void> main() async {
     } catch (_) {
       // Supabase init failed — app continues without persistence
     }
+    // Init notification service (requires Supabase to be initialized)
+    try {
+      await NotificationService.instance.init();
+    } catch (_) {}
   }
   runApp(const ProviderScope(child: IdeaValidatorApp()));
 }
