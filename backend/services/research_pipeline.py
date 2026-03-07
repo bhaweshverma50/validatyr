@@ -33,6 +33,7 @@ from services.research_db import (
     save_research_report,
 )
 from services.community_scraper import CommunityScraperService
+from services.db import send_notification
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,31 @@ def run_research_pipeline(
 
         saved = save_research_report(report.model_dump())
         report_id = saved.get("data", {}).get("id", report.id)
+
+        # Notify: research complete
+        send_notification(
+            type="research_complete",
+            title="Research Report Ready",
+            body=f"New report for {domain} topic",
+            metadata={"topic_id": topic_id, "report_id": report_id},
+        )
+
+        # Notify: high-score ideas (threshold 75)
+        for idea in report.ideas:
+            score = getattr(idea, "opportunity_score", 0)
+            name = getattr(idea, "name", "Untitled")
+            if score >= 75:
+                send_notification(
+                    type="high_score_alert",
+                    title=f"High-Score Idea: {name[:40]}",
+                    body=f"Scored {score}/100 — tap to validate",
+                    metadata={
+                        "topic_id": topic_id,
+                        "report_id": report_id,
+                        "idea_name": name,
+                        "score": score,
+                    },
+                )
 
         update_research_job(job_id, {
             "status": "completed",
