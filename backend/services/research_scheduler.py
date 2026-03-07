@@ -15,6 +15,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from services.research_db import list_research_topics, get_research_topic
 from services.research_pipeline import run_research_pipeline
+from services.db import send_notification
 
 _executor = ThreadPoolExecutor(max_workers=2)
 
@@ -125,6 +126,12 @@ async def _execute_research_job(topic_id: str) -> None:
     if not topic.get("is_active", True):
         logger.info(f"Skipping inactive topic {topic_id}")
         return
+    send_notification(
+        type="schedule_reminder",
+        title="Research Starting",
+        body=f"{topic.get('domain', 'general')} topic research starting now",
+        metadata={"topic_id": topic_id},
+    )
     loop = asyncio.get_running_loop()
     try:
         await loop.run_in_executor(
