@@ -15,13 +15,15 @@ from services.ai_analyzer import (
 from services.discovery import discover_competitors_and_scrape
 from services.community_scraper import CommunityScraperService
 from services.audio_processor import transcribe_audio
-from services.db import save_validation_result, send_notification
+from services.db import save_validation_result, send_notification, create_validation_job, update_validation_job
 import asyncio
 import json as _json
 import os
 import queue as _queue
 from concurrent.futures import ThreadPoolExecutor
 import logging
+import uuid
+import datetime
 
 from google import genai as _genai
 
@@ -150,6 +152,20 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         q.put({"event": event, "data": _json.dumps(data) if isinstance(data, dict) else data})
 
     try:
+        job_id = str(uuid.uuid4())
+        create_validation_job(job_id, idea, user_category)
+        _put("job", {"job_id": job_id})
+
+        def _update_job(step_number: int, agent: str, message: str, status: str = "running"):
+            pct = round((step_number / total_steps) * 100) if total_steps else 0
+            update_validation_job(job_id, {
+                "status": status,
+                "current_step": agent,
+                "step_number": step_number,
+                "step_message": message,
+                "progress_pct": min(pct, 99),
+            })
+
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY not set.")
@@ -168,6 +184,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _put("status", {"agent": "Category Detector",
              "message": f"Identified: {_CATEGORY_LABELS.get(category, category)} · {subcategory}",
              "step": 1, "total": total_steps})
+        _update_job(1, "Category Detector", f"Identified: {_CATEGORY_LABELS.get(category, category)} · {subcategory}")
 
         # ── Step 2: Discovery ─────────────────────────────────────────
         _put("status", {"agent": "Discovery Agent",
@@ -179,9 +196,11 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _put("status", {"agent": "Discovery Agent",
              "message": f"Found {len(competitors_meta)} competitors.",
              "step": 2, "total": total_steps})
+        _update_job(2, "Discovery Agent", f"Found {len(competitors_meta)} competitors.")
 
         if not reviews and not competitors_meta:
             _put("error", {"message": "No competitors found. Try adding more detail about your idea."})
+            update_validation_job(job_id, {"status": "failed", "error": "No competitors found."})
             return
 
         # ── Step 3: Community Scraping ─────────────────────────────────
@@ -198,6 +217,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _put("status", {"agent": "Community Scanner",
              "message": f"Scraped {community_result.total_posts} posts from {len(community_result.sources_succeeded)} sources.",
              "step": 3, "total": total_steps})
+        _update_job(3, "Community Scanner", f"Scraped {community_result.total_posts} posts from {len(community_result.sources_succeeded)} sources.")
 
         # ── Step 4: Researcher Agent ──────────────────────────────────
         _put("status", {"agent": "Researcher Agent",
@@ -220,6 +240,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _put("status", {"agent": "Researcher Agent",
              "message": f"Found {len(researcher_result.what_users_hate)} pain points, {len(researcher_result.community_signals)} community signals.",
              "step": 4, "total": total_steps})
+        _update_job(4, "Researcher Agent", f"Found {len(researcher_result.what_users_hate)} pain points, {len(researcher_result.community_signals)} community signals.")
 
         # ── Step 5: PM Agent ──────────────────────────────────────────
         _put("status", {"agent": "PM Agent",
@@ -231,6 +252,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _put("status", {"agent": "PM Agent",
              "message": f"MVP roadmap ready — {len(pm_result.mvp_roadmap)} features.",
              "step": 5, "total": total_steps})
+        _update_job(5, "PM Agent", f"MVP roadmap ready — {len(pm_result.mvp_roadmap)} features.")
 
         # ── Step 6: Market Intelligence ───────────────────────────────
         _put("status", {"agent": "Market Intelligence",
@@ -277,10 +299,16 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _put("status", {"agent": "Market Intelligence",
              "message": f"Score: {opportunity_score}/100 · TAM: {(market_result.tam or '')[:50]}",
              "step": 6, "total": total_steps})
+        _update_job(6, "Market Intelligence", f"Score: {opportunity_score}/100 · TAM: {(market_result.tam or '')[:50]}")
 
         # Save to DB — runs regardless of whether SSE client is still connected
+        result_id = None
         try:
-            save_validation_result(idea, final_result.model_dump())
+            save_resp = save_validation_result(idea, final_result.model_dump())
+            if save_resp.get("status") == "success" and save_resp.get("data"):
+                rows = save_resp["data"]
+                if isinstance(rows, list) and rows:
+                    result_id = rows[0].get("id")
             send_notification(
                 type="validation_complete",
                 title="Validation Complete",
@@ -290,11 +318,19 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         except Exception as db_err:
             logger.warning(f"Failed to save validation result: {db_err}")
 
+        update_validation_job(job_id, {
+            "status": "completed",
+            "progress_pct": 100,
+            "result_id": result_id,
+            "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        })
+
         _put("result", final_result.model_dump_json())
 
     except Exception as e:
         logger.error(f"Pipeline error: {e}", exc_info=True)
         _put("error", {"message": str(e)})
+        update_validation_job(job_id, {"status": "failed", "error": str(e)})
     finally:
         # Sentinel so the SSE generator knows the pipeline is done
         q.put(None)
