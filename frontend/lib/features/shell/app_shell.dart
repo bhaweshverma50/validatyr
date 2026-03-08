@@ -4,8 +4,7 @@ import '../home/home_screen.dart';
 import '../research/research_dashboard_screen.dart';
 import '../history/history_screen.dart';
 import '../../core/theme/custom_theme.dart';
-import '../../services/notification_service.dart';
-import '../notifications/notification_center_screen.dart';
+import '../../shared_widgets/notification_bell.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -45,8 +44,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // When app resumes from background, refresh the history tab
-    // so results saved while the phone was locked appear immediately.
     if (state == AppLifecycleState.resumed) {
       _historyKey.currentState?.refresh();
     }
@@ -54,7 +51,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   void _onTabTapped(int i) {
     setState(() => _currentIndex = i);
-    // Refresh history data every time the tab is selected
     if (i == 2) {
       _historyKey.currentState?.refresh();
     }
@@ -65,9 +61,20 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          ),
+          // Floating notification bell — only on Home tab (no AppBar)
+          if (_currentIndex == 0)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              right: 12,
+              child: NotificationBell.floating(context),
+            ),
+        ],
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
@@ -127,49 +134,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                 ),
               );
             }),
-            // Notification bell
-            StreamBuilder<int>(
-              stream: NotificationService.instance.unreadCountStream,
-              initialData: NotificationService.instance.unreadCount,
-              builder: (context, snapshot) {
-                final count = snapshot.data ?? 0;
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Icon(LucideIcons.bell, size: 20, color: count > 0 ? Colors.black : Colors.black38),
-                        if (count > 0)
-                          Positioned(
-                            right: -6,
-                            top: -4,
-                            child: Container(
-                              padding: const EdgeInsets.all(3),
-                              decoration: BoxDecoration(
-                                color: RetroTheme.pink,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.black, width: 1.5),
-                              ),
-                              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                              child: Text(
-                                count > 9 ? '9+' : '$count',
-                                style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.black),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
           ],
         ),
       ),

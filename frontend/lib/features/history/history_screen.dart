@@ -8,6 +8,7 @@ import '../../services/api_service.dart';
 import '../../services/supabase_service.dart';
 import '../loading/loading_screen.dart';
 import '../results/results_screen.dart';
+import '../../shared_widgets/notification_bell.dart';
 import '../home/home_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -183,6 +184,7 @@ class HistoryScreenState extends State<HistoryScreen> {
                 icon: const Icon(LucideIcons.trash2),
                 tooltip: 'Delete All',
                 onPressed: _deleteAll),
+          NotificationBell.appBarIcon(context),
         ],
       ),
       body: _buildBody(),
