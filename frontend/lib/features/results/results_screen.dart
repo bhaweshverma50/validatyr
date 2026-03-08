@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
@@ -100,11 +100,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
     try {
       final bytes = await PdfExportService.generateReport(widget.result);
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/Validatyr-Report.pdf');
+      final idea = (widget.result['idea'] as String? ?? 'report')
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .trim()
+          .replaceAll(RegExp(r'\s+'), '-');
+      final shortName = idea.length > 30 ? idea.substring(0, 30) : idea;
+      final file = File('${dir.path}/Validatyr-$shortName.pdf');
       await file.writeAsBytes(bytes);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/pdf')],
-      );
+
+      await OpenFilex.open(file.path, type: 'application/pdf');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
