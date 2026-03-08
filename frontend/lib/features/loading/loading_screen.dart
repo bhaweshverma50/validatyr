@@ -5,6 +5,7 @@ import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
 import '../../services/api_service.dart';
+import '../../services/supabase_service.dart';
 import '../results/results_screen.dart';
 
 class _AgentStep {
@@ -22,7 +23,8 @@ enum _StepState { pending, active, done }
 class LoadingScreen extends StatefulWidget {
   final String idea;
   final String? category;
-  const LoadingScreen({super.key, required this.idea, this.category});
+  final String? jobId;
+  const LoadingScreen({super.key, required this.idea, this.category, this.jobId});
 
   @override
   State<LoadingScreen> createState() => _LoadingScreenState();
@@ -50,6 +52,9 @@ class _LoadingScreenState extends State<LoadingScreen>
   bool _hasResult = false;
   bool _wasBackgrounded = false;
   String _errorMessage = '';
+  String? _jobId;
+  Timer? _pollTimer;
+  bool _isPolling = false;
 
   @override
   void initState() {
@@ -66,13 +71,19 @@ class _LoadingScreenState extends State<LoadingScreen>
         ? 'Category: ${_categoryLabels[widget.category] ?? widget.category}'
         : 'Classifying your idea...');
     _stepStates.add(_StepState.active);
-    _startStream();
+    _jobId = widget.jobId;
+    if (_jobId != null) {
+      _startPolling();
+    } else {
+      _startStream();
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _sub?.cancel();
+    _pollTimer?.cancel();
     _progressCtrl.dispose();
     super.dispose();
   }
@@ -84,12 +95,9 @@ class _LoadingScreenState extends State<LoadingScreen>
     }
     if (state == AppLifecycleState.resumed && _wasBackgrounded && !_hasResult) {
       _wasBackgrounded = false;
-      // Stream likely broke while backgrounded — show friendly recovery message
-      if (!_hasError && mounted) {
-        _setError(
-          'The app was suspended while analysing. '
-          'Your result may still have been saved — check History.',
-        );
+      if (!_hasError && !_isPolling && _jobId != null && mounted) {
+        _sub?.cancel();
+        _startPolling();
       }
     }
   }
@@ -107,21 +115,114 @@ class _LoadingScreenState extends State<LoadingScreen>
   void _startStream() {
     _sub = ApiService.validateStream(widget.idea, category: widget.category).listen(
       _onEvent,
-      onError: (e) => _setError(e.toString()),
+      onError: (e) {
+        if (_jobId != null && !_hasResult) {
+          _startPolling();
+        } else {
+          _setError(e.toString());
+        }
+      },
       onDone: () {
         if (mounted && !_hasError && !_hasResult) {
-          _setError(
-            'Connection closed unexpectedly. '
-            'If analysis was in progress, results may still be saved — check History.',
-          );
+          if (_jobId != null) {
+            _startPolling();
+          } else {
+            _setError(
+              'Connection closed unexpectedly. '
+              'If analysis was in progress, results may still be saved — check History.',
+            );
+          }
         }
       },
       cancelOnError: true,
     );
   }
 
+  void _startPolling() {
+    if (_isPolling || _jobId == null) return;
+    setState(() => _isPolling = true);
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => _pollJob());
+    _pollJob();
+  }
+
+  Future<void> _pollJob() async {
+    if (!mounted || _hasResult || _hasError) {
+      _pollTimer?.cancel();
+      return;
+    }
+    final job = await ApiService.fetchValidationJob(_jobId!);
+    if (job == null || !mounted) return;
+
+    final status = job['status'] as String? ?? 'pending';
+    final stepNum = (job['step_number'] as int?) ?? 0;
+    final total = (job['total_steps'] as int?) ?? 6;
+    final agent = job['current_step'] as String? ?? '';
+    final msg = job['step_message'] as String? ?? '';
+
+    if (status == 'completed') {
+      _pollTimer?.cancel();
+      _hasResult = true;
+      setState(() {
+        for (int i = 0; i < _stepStates.length; i++) {
+          _stepStates[i] = _StepState.done;
+        }
+      });
+      _animateTo(1.0);
+      final resultId = job['result_id'];
+      if (resultId != null) {
+        final result = await SupabaseService.fetchById(resultId);
+        if (result != null && mounted) {
+          await Future.delayed(const Duration(milliseconds: 400));
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ResultsScreen(result: result, saveToHistory: false),
+            ),
+          );
+          return;
+        }
+      }
+      if (mounted) {
+        Navigator.popUntil(context, (route) => route.isFirst);
+      }
+      return;
+    }
+
+    if (status == 'failed') {
+      _pollTimer?.cancel();
+      _setError(job['error'] as String? ?? 'Validation failed');
+      return;
+    }
+
+    // Update step UI from poll data
+    if (stepNum > 0 && agent.isNotEmpty) {
+      final stepIdx = stepNum - 1;
+      setState(() {
+        _totalSteps = total;
+        while (_stepNames.length <= stepIdx) {
+          _stepNames.add('');
+          _stepMessages.add('');
+          _stepStates.add(_StepState.pending);
+        }
+        _stepNames[stepIdx] = agent;
+        _stepMessages[stepIdx] = msg;
+        for (int i = 0; i < stepIdx; i++) {
+          _stepStates[i] = _StepState.done;
+        }
+        _stepStates[stepIdx] = _StepState.active;
+      });
+      _animateTo((stepIdx + 0.5) / _totalSteps);
+    }
+  }
+
   void _onEvent(SseEvent event) {
     if (!mounted) return;
+    if (event.event == 'job') {
+      _jobId = event.data['job_id'] as String?;
+      return;
+    }
     if (event.event == 'category') {
       final label = event.data['label'] as String?;
       setState(() => _detectedCategoryLabel = label);
