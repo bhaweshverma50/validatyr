@@ -126,10 +126,11 @@ class _HomeScreenState extends State<HomeScreen>
           )),
         ),
         SizedBox(
-          height: 40,
+          height: 44,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 4, right: 4),
             itemCount: _categories.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (_, i) {
@@ -204,11 +205,11 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
         SizedBox(
-          height: 40,
+          height: 44,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(bottom: 4, right: 8),
             itemCount: _samplePrompts.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (_, i) {
@@ -297,9 +298,6 @@ class _HomeScreenState extends State<HomeScreen>
                     _buildSamplePrompts(),
 
                     const SizedBox(height: 32),
-
-                    // ── Footer ────────────────────────────────────────
-                    _buildFooter(context),
 
                     const SizedBox(height: 24),
                   ],
@@ -547,42 +545,4 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildFooter(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _buildFooterPill(LucideIcons.searchCode, 'Scrapes real reviews'),
-        const SizedBox(width: 8),
-        _buildFooterPill(LucideIcons.bot, '5 AI agents'),
-        const SizedBox(width: 8),
-        _buildFooterPill(LucideIcons.barChart2, 'Market score'),
-      ],
-    );
-  }
-
-  Widget _buildFooterPill(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.black26, width: 1.5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: RetroTheme.textMuted),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: RetroTheme.textMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

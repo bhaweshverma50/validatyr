@@ -15,35 +15,49 @@ class NotificationBell {
       initialData: NotificationService.instance.unreadCount,
       builder: (context, snapshot) {
         final count = snapshot.data ?? 0;
-        return IconButton(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
-          ),
-          icon: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Icon(LucideIcons.bell, color: count > 0 ? Colors.black : Colors.black54),
-              if (count > 0)
-                Positioned(
-                  right: -4,
-                  top: -4,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: RetroTheme.pink,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black, width: 1.5),
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                    child: Text(
-                      count > 9 ? '9+' : '$count',
-                      style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.black),
-                      textAlign: TextAlign.center,
-                    ),
+        return Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+            ),
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(LucideIcons.bell, size: 24, color: Colors.black),
+                      if (count > 0)
+                        Positioned(
+                          right: -6,
+                          top: -4,
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: RetroTheme.pink,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.black, width: 1.5),
+                            ),
+                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                            child: Text(
+                              count > 9 ? '9+' : '$count',
+                              style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.black),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-            ],
+              ),
+            ),
           ),
         );
       },

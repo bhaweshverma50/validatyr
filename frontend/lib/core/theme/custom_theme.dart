@@ -150,7 +150,7 @@ class RetroTheme {
         backgroundColor: background,
         elevation: 0,
         centerTitle: false,
-        titleSpacing: NavigationToolbar.kMiddleSpacing,
+        titleSpacing: contentPaddingMobile,
         iconTheme: IconThemeData(color: Colors.black, size: 24),
         actionsIconTheme: IconThemeData(color: Colors.black, size: 24),
       ),

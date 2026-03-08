@@ -97,6 +97,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
               MaterialPageRoute(builder: (_) => const NotificationSettingsScreen()),
             ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: _isLoading

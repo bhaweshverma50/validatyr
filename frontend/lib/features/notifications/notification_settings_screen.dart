@@ -74,12 +74,12 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
               ),
               children: [
                 const Text('PUSH NOTIFICATIONS', style: RetroTheme.sectionTitle),
-                const SizedBox(height: RetroTheme.spacingSm),
+                const SizedBox(height: 6),
                 const Text(
                   'Choose which events trigger local push notifications.',
                   style: TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54),
                 ),
-                const SizedBox(height: RetroTheme.spacingMd),
+                const SizedBox(height: RetroTheme.spacingLg),
                 _buildToggle(
                   icon: LucideIcons.checkCircle,
                   color: RetroTheme.mint,
@@ -91,7 +91,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                     _saveBool('notif_validation_complete', v);
                   },
                 ),
-                const SizedBox(height: RetroTheme.spacingSm),
+                const SizedBox(height: RetroTheme.spacingMd),
                 _buildToggle(
                   icon: LucideIcons.microscope,
                   color: RetroTheme.lavender,
@@ -103,7 +103,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                     _saveBool('notif_research_complete', v);
                   },
                 ),
-                const SizedBox(height: RetroTheme.spacingSm),
+                const SizedBox(height: RetroTheme.spacingMd),
                 _buildToggle(
                   icon: LucideIcons.zap,
                   color: RetroTheme.yellow,
@@ -116,7 +116,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                   },
                 ),
                 if (_highScoreAlert) ...[
-                  const SizedBox(height: RetroTheme.spacingSm),
+                  const SizedBox(height: RetroTheme.spacingMd),
                   RetroCard(
                     backgroundColor: const Color(0xFFFEF9C3),
                     padding: const EdgeInsets.all(RetroTheme.spacingMd),
@@ -127,11 +127,12 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                           'SCORE THRESHOLD: $_scoreThreshold',
                           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: RetroTheme.fontSm),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 6),
                         const Text(
                           'Only notify for ideas scoring at or above this value.',
                           style: TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54),
                         ),
+                        const SizedBox(height: 4),
                         Slider(
                           value: _scoreThreshold.toDouble(),
                           min: 50,
@@ -148,7 +149,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                     ),
                   ),
                 ],
-                const SizedBox(height: RetroTheme.spacingSm),
+                const SizedBox(height: RetroTheme.spacingMd),
                 _buildToggle(
                   icon: LucideIcons.clock,
                   color: RetroTheme.blue,
@@ -175,7 +176,7 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
   }) {
     return RetroCard(
       backgroundColor: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         children: [
           Container(

@@ -6,7 +6,6 @@ import '../../shared_widgets/retro_button.dart';
 import '../../services/research_api_service.dart';
 import 'new_topic_screen.dart';
 import 'topic_channel_screen.dart';
-import '../../shared_widgets/notification_bell.dart';
 
 class ResearchDashboardScreen extends StatefulWidget {
   const ResearchDashboardScreen({super.key});
@@ -131,7 +130,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
             icon: const Icon(LucideIcons.plus),
             onPressed: _openNewTopic,
           ),
-          NotificationBell.appBarIcon(context),
+          const SizedBox(width: 8),
         ],
       ),
       body: _buildBody(),
