@@ -73,3 +73,66 @@ def send_notification(type: str, title: str, body: str, metadata: dict | None = 
         }).execute()
     except Exception as e:
         logger.warning(f"Failed to send notification: {e}")
+
+
+def create_validation_job(job_id: str, idea: str, category: str | None) -> None:
+    """Insert a new validation_jobs row with status=pending."""
+    supabase = get_supabase()
+    if not supabase:
+        logger.info(f"[MOCKED] create_validation_job {job_id}")
+        return
+    try:
+        supabase.table("validation_jobs").insert({
+            "id": job_id,
+            "idea": idea,
+            "category": category,
+            "status": "pending",
+        }).execute()
+    except Exception as e:
+        logger.warning(f"Failed to create validation job: {e}")
+
+
+def update_validation_job(job_id: str, updates: dict) -> None:
+    """Update a validation_jobs row by ID with arbitrary fields."""
+    supabase = get_supabase()
+    if not supabase:
+        logger.info(f"[MOCKED] update_validation_job {job_id}: {updates}")
+        return
+    try:
+        supabase.table("validation_jobs").update(updates).eq("id", job_id).execute()
+    except Exception as e:
+        logger.warning(f"Failed to update validation job: {e}")
+
+
+def get_validation_job(job_id: str) -> dict | None:
+    """Fetch a single validation_jobs row by ID."""
+    supabase = get_supabase()
+    if not supabase:
+        logger.info(f"[MOCKED] get_validation_job {job_id}")
+        return None
+    try:
+        resp = supabase.table("validation_jobs").select("*").eq("id", job_id).maybe_single().execute()
+        return resp.data
+    except Exception as e:
+        logger.warning(f"Failed to get validation job: {e}")
+        return None
+
+
+def list_active_validation_jobs() -> list[dict]:
+    """Fetch validation_jobs with status pending or running, newest first."""
+    supabase = get_supabase()
+    if not supabase:
+        logger.info("[MOCKED] list_active_validation_jobs")
+        return []
+    try:
+        resp = (
+            supabase.table("validation_jobs")
+            .select("*")
+            .in_("status", ["pending", "running"])
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return resp.data or []
+    except Exception as e:
+        logger.warning(f"Failed to list active validation jobs: {e}")
+        return []
