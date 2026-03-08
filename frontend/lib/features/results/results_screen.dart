@@ -312,9 +312,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
             children: [
               Icon(icon, size: 22, color: Colors.black),
               const SizedBox(width: 8),
-              Text(
-                title.toUpperCase(),
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.black),
+              Flexible(
+                child: Text(
+                  title.toUpperCase(),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.black),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -347,28 +350,24 @@ class _ResultsScreenState extends State<ResultsScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _sectionLabel('MARKET SIZING', LucideIcons.trendingUp),
       const SizedBox(height: 10),
-      IntrinsicHeight(
-        child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          _buildMarketCard('TAM', tam, RetroTheme.yellow),
-          const SizedBox(width: 8),
-          _buildMarketCard('SAM', sam, RetroTheme.mint),
-          const SizedBox(width: 8),
-          _buildMarketCard('SOM', som, RetroTheme.blue),
-        ]),
-      ),
+      if (tam.isNotEmpty) _buildMarketCard('TAM', tam, RetroTheme.yellow),
+      if (tam.isNotEmpty && sam.isNotEmpty) const SizedBox(height: 10),
+      if (sam.isNotEmpty) _buildMarketCard('SAM', sam, RetroTheme.mint),
+      if ((tam.isNotEmpty || sam.isNotEmpty) && som.isNotEmpty) const SizedBox(height: 10),
+      if (som.isNotEmpty) _buildMarketCard('SOM', som, RetroTheme.blue),
     ]);
   }
 
   Widget _buildMarketCard(String label, String value, Color color) {
-    return Expanded(child: RetroCard(
+    return RetroCard(
       backgroundColor: color,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.black)),
+        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.black)),
         const SizedBox(height: 6),
-        Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, height: 1.4, color: Colors.black)),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.4, color: Colors.black)),
       ]),
-    ));
+    );
   }
 
   Widget _buildRevenueModelsSection() {
@@ -493,9 +492,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
             children: [
               Icon(LucideIcons.search, size: 22, color: colors.iconDefault),
               const SizedBox(width: 8),
-              const Text(
-                'COMPETITORS ANALYZED',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0),
+              const Flexible(
+                child: Text(
+                  'COMPETITORS ANALYZED',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -515,9 +517,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      comp['title']?.toString() ?? comp['app_id']?.toString() ?? 'Unknown',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    Flexible(
+                      child: Text(
+                        comp['title']?.toString() ?? comp['app_id']?.toString() ?? 'Unknown',
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                     if (comp['platform'] != null) ...[
                       const SizedBox(width: 6),

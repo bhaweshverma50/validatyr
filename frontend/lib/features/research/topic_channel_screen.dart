@@ -78,6 +78,8 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
               Text(
                 _keywords.join(', '),
                 style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textMuted, fontWeight: FontWeight.normal),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
           ],
         ),

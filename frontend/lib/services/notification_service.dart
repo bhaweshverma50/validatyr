@@ -71,59 +71,70 @@ class NotificationService {
     }
   }
 
-  Future<void> requestSystemPermissions() async {
+  /// Returns true if permission was granted, false otherwise.
+  Future<bool> requestSystemPermissions() async {
     final plugin = _localNotifications;
-    if (plugin == null) return;
+    if (plugin == null) return false;
 
     try {
-      final messaging = FirebaseMessaging.instance;
+      bool granted = false;
 
-      // Check current status first
-      final currentSettings = await messaging.getNotificationSettings();
-      final alreadyDenied =
-          currentSettings.authorizationStatus == AuthorizationStatus.denied;
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        // On Android 13+, this shows the native permission dialog.
+        // On older versions, notifications are granted by default.
+        final result = await plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >()
+            ?.requestNotificationsPermission();
+        granted = result ?? false;
 
-      if (alreadyDenied) {
-        // iOS won't re-prompt after denial — open system Settings instead
-        if (defaultTargetPlatform == TargetPlatform.iOS) {
+        // Also request via Firebase (ensures internal state is synced)
+        await FirebaseMessaging.instance.requestPermission(
+          alert: true, badge: true, sound: true, provisional: false,
+        );
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final messaging = FirebaseMessaging.instance;
+        final currentSettings = await messaging.getNotificationSettings();
+
+        if (currentSettings.authorizationStatus == AuthorizationStatus.denied) {
+          // iOS won't re-prompt after denial — open system Settings
           await launchUrl(Uri.parse('app-settings:'));
-        } else {
-          await launchUrl(Uri.parse('package:com.validatyr.frontend'));
+          return false;
         }
-        return;
+
+        final settings = await messaging.requestPermission(
+          alert: true, badge: true, sound: true, provisional: false,
+        );
+        await plugin
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >()
+            ?.requestPermissions(alert: true, badge: true, sound: true);
+        granted = settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional;
+      } else {
+        // macOS / other
+        final messaging = FirebaseMessaging.instance;
+        final settings = await messaging.requestPermission(
+          alert: true, badge: true, sound: true, provisional: false,
+        );
+        await plugin
+            .resolvePlatformSpecificImplementation<
+              MacOSFlutterLocalNotificationsPlugin
+            >()
+            ?.requestPermissions(alert: true, badge: true, sound: true);
+        granted = settings.authorizationStatus == AuthorizationStatus.authorized ||
+            settings.authorizationStatus == AuthorizationStatus.provisional;
       }
 
-      final settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-
-      // Also request for local notifications
-      await plugin
-          .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin
-          >()
-          ?.requestPermissions(alert: true, badge: true, sound: true);
-      await plugin
-          .resolvePlatformSpecificImplementation<
-            MacOSFlutterLocalNotificationsPlugin
-          >()
-          ?.requestPermissions(alert: true, badge: true, sound: true);
-      await plugin
-          .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin
-          >()
-          ?.requestNotificationsPermission();
-
-      // If permission granted, ensure we have an FCM token registered
-      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional) {
+      if (granted) {
         await _ensureFcmTokenRegistered();
       }
+      return granted;
     } catch (e) {
       debugPrint('NotificationService: permission request failed: $e');
+      return false;
     }
   }
 
