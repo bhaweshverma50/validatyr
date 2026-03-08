@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
-import '../../services/api_service.dart';
 import '../loading/loading_screen.dart';
 
 typedef _CategoryEntry = ({String? id, String label, IconData icon});
@@ -21,10 +19,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _ideaController = TextEditingController();
-  final AudioRecorder _audioRecorder = AudioRecorder();
+  final stt.SpeechToText _speech = stt.SpeechToText();
 
   bool _isLoading = false;
   bool _isRecording = false;
+  bool _speechAvailable = false;
   AnimationController? _pulseController;
   String? _emptyInputError;
   String? _transcribeError;
@@ -40,12 +39,30 @@ class _HomeScreenState extends State<HomeScreen>
     if (widget.initialIdea != null && widget.initialIdea!.isNotEmpty) {
       _ideaController.text = widget.initialIdea!;
     }
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    _speechAvailable = await _speech.initialize(
+      onError: (error) {
+        if (mounted) {
+          setState(() {
+            _isRecording = false;
+            _pulseController?.stop();
+            if (error.errorMsg == 'error_no_match') {
+              _transcribeError =
+                  'No speech detected. Try recording again or type your idea.';
+            }
+          });
+        }
+      },
+    );
   }
 
   @override
   void dispose() {
     _ideaController.dispose();
-    _audioRecorder.dispose();
+    _speech.stop();
     _pulseController?.dispose();
     super.dispose();
   }
@@ -53,44 +70,50 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _toggleRecording() async {
     try {
       if (_isRecording) {
-        final path = await _audioRecorder.stop();
+        await _speech.stop();
         _pulseController?.stop();
         setState(() {
           _isRecording = false;
-          _transcribeError = null;
         });
-
-        if (path != null) {
-          setState(() => _isLoading = true);
-          try {
-            final transcript = await ApiService.transcribeAudio(path);
-            if (transcript != null && transcript.isNotEmpty) {
-              setState(() => _ideaController.text = transcript);
-            } else {
-              setState(() => _transcribeError =
-                  'Could not transcribe audio. Please type your idea instead.');
-            }
-          } finally {
-            setState(() => _isLoading = false);
-          }
+        // If no text was captured, show error
+        if (_ideaController.text.trim().isEmpty) {
+          setState(() => _transcribeError =
+              'No speech detected. Try recording again or type your idea.');
         }
       } else {
-        if (await _audioRecorder.hasPermission()) {
-          final dir = await getApplicationDocumentsDirectory();
-          final path =
-              '${dir.path}/idea_${DateTime.now().millisecondsSinceEpoch}.m4a';
-          await _audioRecorder.start(
-              const RecordConfig(encoder: AudioEncoder.aacLc),
-              path: path);
-          _pulseController?.repeat(reverse: true);
-          setState(() {
-            _isRecording = true;
-            _transcribeError = null;
-          });
+        if (!_speechAvailable) {
+          setState(() => _transcribeError =
+              'Speech recognition not available on this device.');
+          return;
         }
+        setState(() {
+          _transcribeError = null;
+          _emptyInputError = null;
+        });
+        _pulseController?.repeat(reverse: true);
+        setState(() => _isRecording = true);
+        await _speech.listen(
+          onResult: (result) {
+            if (mounted) {
+              setState(() {
+                _ideaController.text = result.recognizedWords;
+              });
+            }
+          },
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 3),
+          listenOptions: stt.SpeechListenOptions(
+            cancelOnError: true,
+            partialResults: true,
+          ),
+        );
       }
     } catch (e) {
-      setState(() => _transcribeError = 'Recording error: ${e.toString()}');
+      _pulseController?.stop();
+      setState(() {
+        _isRecording = false;
+        _transcribeError = 'Recording error: ${e.toString()}';
+      });
     }
   }
 

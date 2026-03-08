@@ -25,15 +25,27 @@ def transcribe_audio(file_bytes: bytes) -> str:
         logger.info(f"Uploading temporary audio file {temp_audio_path} to Gemini...")
         audio_file = client.files.upload(file=temp_audio_path, config={"mime_type": "audio/mp4"})
         
-        prompt = "Listen to this audio clip. It is a user describing their new app or business idea. Transcribe what they are saying exactly word-for-word. Do not add any conversational flair or acknowledgment. Output ONLY the transcription."
-        
+        prompt = (
+            "Listen to this audio clip. It is a user describing their new app or business idea. "
+            "Transcribe what they are saying exactly word-for-word. Do not add any conversational "
+            "flair or acknowledgment. Output ONLY the transcription. "
+            "If the audio is silent, empty, contains only background noise, or has no intelligible "
+            "speech, respond with exactly: EMPTY"
+        )
+
         logger.info("Transcribing audio with gemini-3-flash-preview...")
         response = client.models.generate_content(
             model='gemini-3-flash-preview',
             contents=[audio_file, prompt]
         )
-        
+
         transcript = response.text.strip()
+
+        # Detect silence / no speech
+        if not transcript or transcript.upper() == "EMPTY":
+            logger.info("Audio contained no intelligible speech.")
+            return ""
+
         logger.info(f"Successfully transcribed audio: '{transcript[:50]}...'")
         return transcript
         

@@ -49,6 +49,7 @@ dependencies:
   share_plus: ^10.1.4
   flutter_local_notifications: ^18.0.1
   shared_preferences: ^2.3.4
+  speech_to_text: ^7.0.0
 
 dev_dependencies:
   flutter_test:
