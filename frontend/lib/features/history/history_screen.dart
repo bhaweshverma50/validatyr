@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
+import '../../services/api_service.dart';
 import '../../services/supabase_service.dart';
+import '../loading/loading_screen.dart';
 import '../results/results_screen.dart';
 import '../home/home_screen.dart';
 
@@ -18,11 +21,19 @@ class HistoryScreenState extends State<HistoryScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   String? _errorMessage;
+  List<Map<String, dynamic>> _runningJobs = [];
+  Timer? _autoRefreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
   }
 
   /// Called by AppShell when the History tab becomes active or app resumes.
@@ -36,13 +47,18 @@ class HistoryScreenState extends State<HistoryScreen> {
       });
     }
     try {
-      final data = await SupabaseService.fetchHistory();
+      final results = await Future.wait([
+        ApiService.fetchActiveJobs(),
+        SupabaseService.fetchHistory(),
+      ]);
       if (mounted) {
         setState(() {
-          _items = data;
+          _runningJobs = results[0];
+          _items = results[1];
           _isLoading = false;
           _errorMessage = null;
         });
+        _manageAutoRefresh();
       }
     } catch (e) {
       if (mounted) {
@@ -51,6 +67,18 @@ class HistoryScreenState extends State<HistoryScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  void _manageAutoRefresh() {
+    if (_runningJobs.isNotEmpty) {
+      _autoRefreshTimer ??= Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _load(silent: true),
+      );
+    } else {
+      _autoRefreshTimer?.cancel();
+      _autoRefreshTimer = null;
     }
   }
 
@@ -201,7 +229,7 @@ class HistoryScreenState extends State<HistoryScreen> {
       );
     }
 
-    if (_items.isEmpty) {
+    if (_items.isEmpty && _runningJobs.isEmpty) {
       return Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(LucideIcons.inbox, size: 56, color: Colors.black26),
@@ -218,14 +246,42 @@ class HistoryScreenState extends State<HistoryScreen> {
     return RefreshIndicator(
       color: Colors.black,
       onRefresh: _load,
-      child: ListView.separated(
+      child: ListView(
         padding: const EdgeInsets.symmetric(
           horizontal: RetroTheme.contentPaddingMobile,
           vertical: RetroTheme.spacingMd,
         ),
-        itemCount: _items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: RetroTheme.spacingMd),
-        itemBuilder: (_, i) => _buildItem(_items[i]),
+        children: [
+          if (_runningJobs.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text('RUNNING',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
+                      color: Colors.black54)),
+            ),
+            ..._runningJobs.map((job) => Padding(
+              padding: const EdgeInsets.only(bottom: RetroTheme.spacingMd),
+              child: _buildRunningJobCard(job),
+            )),
+            if (_items.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 4, bottom: 8),
+                child: Text('COMPLETED',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                        color: Colors.black54)),
+              ),
+          ],
+          ..._items.map((item) => Padding(
+            padding: const EdgeInsets.only(bottom: RetroTheme.spacingMd),
+            child: _buildItem(item),
+          )),
+        ],
       ),
     );
   }
@@ -311,6 +367,53 @@ class HistoryScreenState extends State<HistoryScreen> {
       ]),
     );
   }
+  Widget _buildRunningJobCard(Map<String, dynamic> job) {
+    final idea = job['idea'] as String? ?? '';
+    final agent = job['current_step'] as String? ?? 'Starting...';
+    final stepNum = (job['step_number'] as int?) ?? 0;
+    final total = (job['total_steps'] as int?) ?? 6;
+    final displayIdea = idea.length > 60 ? '${idea.substring(0, 60)}...' : idea;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LoadingScreen(
+              idea: idea,
+              category: job['category'] as String?,
+              jobId: job['id'] as String,
+            ),
+          ),
+        ).then((_) => _load(silent: true));
+      },
+      child: RetroCard(
+        backgroundColor: RetroTheme.yellow.withAlpha(60),
+        padding: const EdgeInsets.all(14),
+        child: Row(children: [
+          const _PulsingDot(),
+          const SizedBox(width: 12),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(displayIdea,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      height: 1.3)),
+              const SizedBox(height: 4),
+              Text('$agent · Step $stepNum/$total',
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black54)),
+            ],
+          )),
+          const Icon(LucideIcons.chevronRight, size: 18, color: Colors.black38),
+        ]),
+      ),
+    );
+  }
 }
 
 class _SmallBtn extends StatefulWidget {
@@ -368,6 +471,47 @@ class _SmallBtnState extends State<_SmallBtn> {
                 style: const TextStyle(
                     fontSize: 11, fontWeight: FontWeight.w800)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot();
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 800))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween<double>(begin: 0.3, end: 1.0).animate(_ctrl),
+      child: Container(
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(
+          color: RetroTheme.yellow,
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.black, width: 1.5),
         ),
       ),
     );
