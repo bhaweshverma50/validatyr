@@ -99,4 +99,29 @@ class ApiService {
     }
     return null;
   }
+
+  /// Fetch all active (pending/running) validation jobs.
+  static Future<List<Map<String, dynamic>>> fetchActiveJobs() async {
+    try {
+      final resp = await http.get(Uri.parse('$_baseUrl/validation-jobs'))
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        final body = jsonDecode(resp.body) as Map<String, dynamic>;
+        return List<Map<String, dynamic>>.from(body['jobs'] as List);
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Fetch a single validation job by ID (for poll mode).
+  static Future<Map<String, dynamic>?> fetchValidationJob(String jobId) async {
+    try {
+      final resp = await http.get(Uri.parse('$_baseUrl/validation-jobs/$jobId'))
+          .timeout(const Duration(seconds: 5));
+      if (resp.statusCode == 200) {
+        return jsonDecode(resp.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
 }

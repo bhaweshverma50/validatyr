@@ -58,4 +58,14 @@ class SupabaseService {
     // bigserial IDs are always > 0 — use as filter to satisfy Supabase DELETE requirement
     await _client.from('validations').delete().gte('id', 0);
   }
+
+  /// Fetch a single validation by its row ID.
+  static Future<Map<String, dynamic>?> fetchById(dynamic id) async {
+    final response = await _client
+        .from('validations')
+        .select()
+        .eq('id', id)
+        .maybeSingle();
+    return response;
+  }
 }
