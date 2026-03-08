@@ -169,6 +169,7 @@ class _HomeScreenState extends State<HomeScreen>
   ];
 
   Widget _buildCategorySelector() {
+    final colors = RetroColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -180,7 +181,7 @@ class _HomeScreenState extends State<HomeScreen>
               fontSize: 11,
               fontWeight: FontWeight.w800,
               letterSpacing: 1.8,
-              color: RetroTheme.textMuted,
+              color: colors.textMuted,
             ),
           ),
         ),
@@ -204,26 +205,22 @@ class _HomeScreenState extends State<HomeScreen>
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: isSelected ? RetroTheme.yellow : Colors.white,
+                    color: isSelected ? RetroTheme.yellow : colors.surface,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isSelected ? Colors.black : Colors.black38,
+                      color: isSelected ? colors.border : colors.textSubtle,
                       width: isSelected ? 2.5 : 1.5,
                     ),
                     boxShadow: isSelected
-                        ? const [
-                            BoxShadow(
-                              color: Colors.black,
-                              offset: Offset(2, 2),
-                              blurRadius: 0,
-                            ),
-                          ]
+                        ? RetroTheme.shadowSmOf(context)
                         : null,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(cat.icon, size: 13, color: Colors.black),
+                      Icon(cat.icon, size: 13,
+                        color: isSelected ? Colors.black : colors.text,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         cat.label,
@@ -232,6 +229,7 @@ class _HomeScreenState extends State<HomeScreen>
                           fontWeight: isSelected
                               ? FontWeight.w800
                               : FontWeight.w600,
+                          color: isSelected ? Colors.black : colors.text,
                         ),
                       ),
                     ],
@@ -255,6 +253,7 @@ class _HomeScreenState extends State<HomeScreen>
   ];
 
   Widget _buildSamplePrompts() {
+    final colors = RetroColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -262,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen>
           padding: const EdgeInsets.only(left: 2, bottom: 12),
           child: Row(
             children: [
-              Container(width: 18, height: 2, color: RetroTheme.textMuted),
+              Container(width: 18, height: 2, color: colors.textMuted),
               const SizedBox(width: 8),
               Text(
                 'OR TRY AN EXAMPLE',
@@ -270,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen>
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 1.8,
-                  color: RetroTheme.textMuted,
+                  color: colors.textMuted,
                 ),
               ),
             ],
@@ -299,13 +298,13 @@ class _HomeScreenState extends State<HomeScreen>
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: colors.surface,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.black, width: 2),
-                    boxShadow: const [
+                    border: Border.all(color: colors.border, width: 2),
+                    boxShadow: [
                       BoxShadow(
-                        color: Colors.black,
-                        offset: Offset(2, 2),
+                        color: colors.border,
+                        offset: const Offset(2, 2),
                         blurRadius: 0,
                       ),
                     ],
@@ -328,13 +327,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
     final isDesktop = screenWidth > RetroTheme.mobileBreakpoint;
     final horizontalPadding = isDesktop ? 48.0 : 24.0;
 
     return Scaffold(
-      backgroundColor: RetroTheme.background,
+      backgroundColor: colors.background,
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -387,6 +387,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildHero(BuildContext context, bool isDesktop) {
+    final colors = RetroColors.of(context);
     return Column(
       children: [
         // Badge
@@ -396,11 +397,11 @@ class _HomeScreenState extends State<HomeScreen>
             decoration: BoxDecoration(
               color: RetroTheme.yellow,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.black, width: 2),
-              boxShadow: const [
+              border: Border.all(color: colors.border, width: 2),
+              boxShadow: [
                 BoxShadow(
-                  color: Colors.black,
-                  offset: Offset(2, 2),
+                  color: colors.border,
+                  offset: const Offset(2, 2),
                   blurRadius: 0,
                 ),
               ],
@@ -431,10 +432,10 @@ class _HomeScreenState extends State<HomeScreen>
           'VALIDATYR.',
           style: Theme.of(context).textTheme.displayLarge?.copyWith(
             color: RetroTheme.pink,
-            shadows: const [
-              Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
-              Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
-              Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+            shadows: [
+              Shadow(color: colors.border, offset: const Offset(1, 1), blurRadius: 0),
+              Shadow(color: colors.border, offset: const Offset(2, 2), blurRadius: 0),
+              Shadow(color: colors.border, offset: const Offset(3, 3), blurRadius: 0),
             ],
             fontSize: isDesktop ? 56 : 44,
             height: 1.0,
@@ -450,7 +451,7 @@ class _HomeScreenState extends State<HomeScreen>
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontSize: isDesktop ? 17 : 15,
             height: 1.55,
-            color: RetroTheme.textMuted,
+            color: colors.textMuted,
           ),
           textAlign: TextAlign.center,
         ),
@@ -459,6 +460,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildInputCard() {
+    final colors = RetroColors.of(context);
     return RetroCard(
       backgroundColor: RetroTheme.mint,
       padding: const EdgeInsets.all(20),
@@ -482,7 +484,7 @@ class _HomeScreenState extends State<HomeScreen>
                     _pulseController!.value,
                   ),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.black, width: 2),
+                  border: Border.all(color: colors.border, width: 2),
                 ),
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
@@ -494,6 +496,7 @@ class _HomeScreenState extends State<HomeScreen>
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
+                        color: Colors.black,
                       ),
                     ),
                   ],
@@ -508,9 +511,10 @@ class _HomeScreenState extends State<HomeScreen>
                 controller: _ideaController,
                 maxLines: 5,
                 enabled: !_isRecording,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 15,
+                  color: colors.text, // inside input with surface bg
                 ),
                 onTapOutside: (_) =>
                     FocusManager.instance.primaryFocus?.unfocus(),
@@ -521,7 +525,7 @@ class _HomeScreenState extends State<HomeScreen>
                 },
                 decoration: InputDecoration(
                   hintText: 'e.g. A social network for dog owners...',
-                  fillColor: Colors.white,
+                  fillColor: colors.surface,
                   contentPadding: const EdgeInsets.only(
                     left: 16,
                     right: 56,
@@ -533,18 +537,18 @@ class _HomeScreenState extends State<HomeScreen>
                     borderSide: BorderSide(
                       color: _emptyInputError != null
                           ? Colors.red
-                          : Colors.black,
+                          : colors.border,
                       width: 2.5,
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Colors.black, width: 3),
+                    borderSide: BorderSide(color: colors.border, width: 3),
                   ),
                   disabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(
-                      color: Colors.black38,
+                    borderSide: BorderSide(
+                      color: colors.textSubtle,
                       width: 2,
                     ),
                   ),
@@ -565,19 +569,19 @@ class _HomeScreenState extends State<HomeScreen>
                             ? RetroTheme.pink
                             : RetroTheme.yellow,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.black, width: 2.5),
+                        border: Border.all(color: colors.border, width: 2.5),
                         boxShadow: _isRecording
                             ? []
-                            : const [
+                            : [
                                 BoxShadow(
-                                  color: Colors.black,
-                                  offset: Offset(2, 2),
+                                  color: colors.border,
+                                  offset: const Offset(2, 2),
                                   blurRadius: 0,
                                 ),
                               ],
                       ),
-                      child: Icon(
-                        _isRecording ? LucideIcons.square : LucideIcons.mic,
+                      child: const Icon(
+                        LucideIcons.mic,
                         color: Colors.black,
                         size: 20,
                       ),

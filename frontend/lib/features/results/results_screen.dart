@@ -12,8 +12,15 @@ import '../../services/pdf_export_service.dart';
 class _ScoreGaugePainter extends CustomPainter {
   final double score;
   final Color scoreColor;
+  final Color borderColor;
+  final Color trackColor;
 
-  _ScoreGaugePainter({required this.score, required this.scoreColor});
+  _ScoreGaugePainter({
+    required this.score,
+    required this.scoreColor,
+    required this.borderColor,
+    required this.trackColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -25,14 +32,14 @@ class _ScoreGaugePainter extends CustomPainter {
 
     // Border ring
     final borderPaint = Paint()
-      ..color = Colors.black
+      ..color = borderColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth + 6;
     canvas.drawCircle(center, radius, borderPaint);
 
     // Background track
     final bgPaint = Paint()
-      ..color = Colors.white
+      ..color = trackColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
@@ -57,7 +64,7 @@ class _ScoreGaugePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ScoreGaugePainter old) =>
-      old.score != score || old.scoreColor != scoreColor;
+      old.score != score || old.scoreColor != scoreColor || old.borderColor != borderColor || old.trackColor != trackColor;
 }
 
 class ResultsScreen extends StatefulWidget {
@@ -110,6 +117,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   Widget _buildScoreGauge(double score) {
+    final colors = RetroColors.of(context);
     final color = RetroTheme.scoreColor(score);
     return SizedBox(
       height: 180,
@@ -118,7 +126,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         children: [
           CustomPaint(
             size: const Size(180, 180),
-            painter: _ScoreGaugePainter(score: score, scoreColor: color),
+            painter: _ScoreGaugePainter(score: score, scoreColor: color, borderColor: colors.border, trackColor: colors.surface),
           ),
           Center(
             child: Column(
@@ -129,7 +137,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   style: const TextStyle(
                     fontSize: 44,
                     fontWeight: FontWeight.w900,
-                    color: Colors.black,
+                    color: Colors.black, // on yellow card
                     height: 1.0,
                   ),
                 ),
@@ -138,7 +146,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: Colors.black54,
+                    color: Color(0xFF475569), // muted black on yellow
                   ),
                 ),
               ],
@@ -150,6 +158,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   Widget _buildScoreBreakdown(Map<String, dynamic> breakdown) {
+    final colors = RetroColors.of(context);
     final dimensions = [
       {'key': 'pain_severity',          'label': 'Pain Severity',      'weight': '25%', 'color': RetroTheme.pink,     'icon': LucideIcons.flame},
       {'key': 'market_gap',             'label': 'Market Gap',         'weight': '20%', 'color': RetroTheme.blue,     'icon': LucideIcons.target},
@@ -173,7 +182,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(dim['icon'] as IconData, size: 14, color: Colors.black),
+                    Icon(dim['icon'] as IconData, size: 14, color: colors.iconDefault),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -183,15 +192,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     ),
                     Text(
                       '${value.toInt()}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
-                        color: Colors.black,
+                        color: colors.text,
                       ),
                     ),
                     Text(
                       '  (${dim['weight']})',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black54),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -199,9 +208,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
               Container(
                 height: 16,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: colors.surface,
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.black, width: 2),
+                  border: Border.all(color: colors.border, width: 2),
                 ),
                 child: FractionallySizedBox(
                   alignment: Alignment.centerLeft,
@@ -241,6 +250,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.0,
+                    color: Colors.black,
                   ),
                 ),
               ),
@@ -275,7 +285,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     Expanded(
                       child: Text(
                         entry.value.toString(),
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.5),
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.5, color: Colors.black),
                       ),
                     ),
                   ],
@@ -300,14 +310,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
               const SizedBox(width: 8),
               Text(
                 title.toUpperCase(),
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.black),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             content,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.6),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.6, color: Colors.black),
           ),
         ],
       ),
@@ -315,11 +325,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
   }
 
   Widget _sectionLabel(String text, IconData icon) {
+    final colors = RetroColors.of(context);
     return Row(children: [
-      Icon(icon, size: 14, color: Colors.black54),
+      Icon(icon, size: 14, color: colors.iconMuted),
       const SizedBox(width: 6),
-      Text(text, style: const TextStyle(
-          fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.5, color: Colors.black54)),
+      Text(text, style: TextStyle(
+          fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.5, color: colors.textMuted)),
     ]);
   }
 
@@ -349,9 +360,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
       backgroundColor: color,
       padding: const EdgeInsets.all(12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.black)),
         const SizedBox(height: 6),
-        Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, height: 1.4)),
+        Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, height: 1.4, color: Colors.black)),
       ]),
     ));
   }
@@ -377,18 +388,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Container(
                 width: 28, height: 28,
-                decoration: BoxDecoration(color: Colors.white,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.black, width: 2)),
+                decoration: BoxDecoration(color: Colors.black,
+                    borderRadius: BorderRadius.circular(6)),
                 child: Center(child: Text('${e.key + 1}',
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900))),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white))),
               ),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(c['name']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                Text(c['name']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black)),
                 if ((c['funding'] ?? '').toString().isNotEmpty || (c['investors'] ?? '').toString().isNotEmpty)
                   Text('${c['funding'] ?? ''}${(c['investors'] ?? '').toString().isNotEmpty ? ' · ${c['investors']}' : ''}',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: RetroTheme.textMuted)),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
               ])),
             ]),
           );
@@ -417,16 +427,17 @@ class _ResultsScreenState extends State<ResultsScreen> {
   };
 
   Widget _buildCategoryBadge(String category, String subcategory) {
+    final colors = RetroColors.of(context);
     final label = _categoryLabels[category] ?? category;
     return Center(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         margin: const EdgeInsets.only(bottom: 20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.black, width: 2),
-          boxShadow: const [BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0)],
+          border: Border.all(color: colors.border, width: 2),
+          boxShadow: RetroTheme.shadowSmOf(context),
         ),
         child: Text(
           subcategory.isNotEmpty ? '$label  ·  $subcategory' : label,
@@ -443,7 +454,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         color: color,
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800)),
+      child: Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.black)),
     );
   }
 
@@ -467,17 +478,18 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   Widget _buildCompetitorsSection(List<dynamic> competitors) {
     if (competitors.isEmpty) return const SizedBox.shrink();
+    final colors = RetroColors.of(context);
 
     return RetroCard(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(LucideIcons.search, size: 22, color: Colors.black),
-              SizedBox(width: 8),
-              Text(
+              Icon(LucideIcons.search, size: 22, color: colors.iconDefault),
+              const SizedBox(width: 8),
+              const Text(
                 'COMPETITORS ANALYZED',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0),
               ),
@@ -492,9 +504,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
               return Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: RetroTheme.background,
+                  color: colors.background,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.black, width: 2),
+                  border: Border.all(color: colors.border, width: 2),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -533,6 +545,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     final double score = (widget.result['opportunity_score'] ?? 0).toDouble();
     final Map<String, dynamic> breakdown = (widget.result['score_breakdown'] is Map)
         ? Map<String, dynamic>.from(widget.result['score_breakdown'])
@@ -567,12 +580,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
         ),
         actions: [
           _isExporting
-              ? const Padding(
-                  padding: EdgeInsets.all(14),
+              ? Padding(
+                  padding: const EdgeInsets.all(14),
                   child: SizedBox(
                     width: 24,
                     height: 24,
-                    child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5),
+                    child: CircularProgressIndicator(color: colors.text, strokeWidth: 2.5),
                   ),
                 )
               : IconButton(
@@ -607,7 +620,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                             children: [
                               const Text(
                                 'OPPORTUNITY SCORE',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.black),
                               ),
                               const SizedBox(height: 20),
                               _buildScoreGauge(score),
@@ -616,9 +629,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: colors.surface,
                                     borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: Colors.black, width: 2),
+                                    border: Border.all(color: colors.border, width: 2),
                                   ),
                                   child: Text(
                                     'Target: $targetOs',
@@ -636,14 +649,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       Expanded(
                         flex: 3,
                         child: RetroCard(
-                          backgroundColor: Colors.white,
+                          backgroundColor: colors.surface,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const Row(
+                              Row(
                                 children: [
-                                  Icon(LucideIcons.barChart3, size: 20, color: Colors.black),
-                                  SizedBox(width: 8),
+                                  Icon(LucideIcons.barChart3, size: 20, color: colors.iconDefault),
+                                  const SizedBox(width: 8),
                                   Text(
                                     'SCORE BREAKDOWN',
                                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0),
@@ -667,7 +680,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       children: [
                         const Text(
                           'OPPORTUNITY SCORE',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.black),
                         ),
                         const SizedBox(height: 20),
                         _buildScoreGauge(score),
@@ -676,9 +689,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: colors.surface,
                               borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.black, width: 2),
+                              border: Border.all(color: colors.border, width: 2),
                             ),
                             child: Text(
                               'Target: $targetOs',
@@ -693,14 +706,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   if (breakdown.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     RetroCard(
-                      backgroundColor: Colors.white,
+                      backgroundColor: colors.surface,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Row(
+                          Row(
                             children: [
-                              Icon(LucideIcons.barChart3, size: 20, color: Colors.black),
-                              SizedBox(width: 8),
+                              Icon(LucideIcons.barChart3, size: 20, color: colors.iconDefault),
+                              const SizedBox(width: 8),
                               Text(
                                 'SCORE BREAKDOWN',
                                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0),

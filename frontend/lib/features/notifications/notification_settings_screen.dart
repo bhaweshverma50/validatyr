@@ -3,15 +3,18 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
+import '../../services/notification_service.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({super.key});
 
   @override
-  State<NotificationSettingsScreen> createState() => _NotificationSettingsScreenState();
+  State<NotificationSettingsScreen> createState() =>
+      _NotificationSettingsScreenState();
 }
 
-class _NotificationSettingsScreenState extends State<NotificationSettingsScreen> {
+class _NotificationSettingsScreenState
+    extends State<NotificationSettingsScreen> {
   bool _validationComplete = true;
   bool _researchComplete = true;
   bool _highScoreAlert = true;
@@ -49,8 +52,9 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     return Scaffold(
-      backgroundColor: RetroTheme.background,
+      backgroundColor: colors.background,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
@@ -66,20 +70,74 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
         ),
       ),
       body: !_loaded
-          ? const Center(child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5))
+          ? Center(
+              child: CircularProgressIndicator(
+                color: colors.text,
+                strokeWidth: 2.5,
+              ),
+            )
           : ListView(
               padding: const EdgeInsets.symmetric(
                 horizontal: RetroTheme.contentPaddingMobile,
                 vertical: RetroTheme.spacingMd,
               ),
               children: [
-                const Text('PUSH NOTIFICATIONS', style: RetroTheme.sectionTitle),
+                const Text('NOTIFICATIONS', style: RetroTheme.sectionTitle),
                 const SizedBox(height: 6),
-                const Text(
-                  'Choose which events trigger local push notifications.',
-                  style: TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54),
+                Text(
+                  'Choose which events trigger app alerts and local notifications.',
+                  style: TextStyle(
+                    fontSize: RetroTheme.fontSm,
+                    color: colors.textMuted,
+                  ),
                 ),
                 const SizedBox(height: RetroTheme.spacingLg),
+                RetroCard(
+                  backgroundColor: RetroTheme.mint.withAlpha(110),
+                  padding: const EdgeInsets.all(RetroTheme.spacingMd),
+                  child: Row(
+                    children: [
+                      Icon(LucideIcons.bellRing, color: colors.iconDefault),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Enable system notification permissions so completed jobs can alert you when the app is active or resumed.',
+                          style: TextStyle(
+                            fontSize: RetroTheme.fontSm,
+                            fontWeight: FontWeight.w600,
+                            color: colors.text,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          backgroundColor: RetroTheme.yellow,
+                          foregroundColor: Colors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              RetroTheme.radiusSm,
+                            ),
+                            side: BorderSide(
+                              color: colors.border,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        onPressed: () {
+                          NotificationService.instance
+                              .requestSystemPermissions();
+                        },
+                        child: const Text(
+                          'Enable',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: RetroTheme.spacingMd),
                 _buildToggle(
                   icon: LucideIcons.checkCircle,
                   color: RetroTheme.mint,
@@ -125,25 +183,40 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
                       children: [
                         Text(
                           'SCORE THRESHOLD: $_scoreThreshold',
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: RetroTheme.fontSm),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: RetroTheme.fontSm,
+                            color: Colors.black,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         const Text(
                           'Only notify for ideas scoring at or above this value.',
-                          style: TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54),
+                          style: TextStyle(
+                            fontSize: RetroTheme.fontSm,
+                            color: Color(0xFF475569),
+                          ),
                         ),
                         const SizedBox(height: 4),
-                        Slider(
-                          value: _scoreThreshold.toDouble(),
-                          min: 50,
-                          max: 95,
-                          divisions: 9,
-                          label: '$_scoreThreshold',
-                          activeColor: Colors.black,
-                          onChanged: (v) {
-                            setState(() => _scoreThreshold = v.round());
-                            _saveInt('notif_score_threshold', v.round());
-                          },
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            activeTrackColor: Colors.black,
+                            inactiveTrackColor: RetroTheme.textSubtle,
+                            thumbColor: RetroTheme.yellow,
+                            overlayColor: RetroTheme.yellow.withAlpha(60),
+                            trackHeight: 6,
+                          ),
+                          child: Slider(
+                            value: _scoreThreshold.toDouble(),
+                            min: 50,
+                            max: 95,
+                            divisions: 9,
+                            label: '$_scoreThreshold',
+                            onChanged: (v) {
+                              setState(() => _scoreThreshold = v.round());
+                              _saveInt('notif_score_threshold', v.round());
+                            },
+                          ),
                         ),
                       ],
                     ),
@@ -174,8 +247,9 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
+    final colors = RetroColors.of(context);
     return RetroCard(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.surface,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       child: Row(
         children: [
@@ -185,7 +259,10 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(RetroTheme.radiusSm),
-              border: Border.all(color: RetroTheme.border, width: RetroTheme.borderWidthThin),
+              border: Border.all(
+                color: colors.border,
+                width: RetroTheme.borderWidthThin,
+              ),
             ),
             child: Icon(icon, size: 16, color: Colors.black),
           ),
@@ -194,15 +271,30 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: RetroTheme.fontMd)),
-                Text(subtitle, style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: RetroTheme.fontMd,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: RetroTheme.fontSm,
+                    color: colors.textMuted,
+                  ),
+                ),
               ],
             ),
           ),
-          Switch.adaptive(
+          Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: Colors.black,
+            activeColor: RetroTheme.yellow,
+            activeTrackColor: colors.border,
+            inactiveThumbColor: colors.textMuted,
+            inactiveTrackColor: colors.borderSubtle,
           ),
         ],
       ),

@@ -8,8 +8,30 @@ import '../features/notifications/notification_center_screen.dart';
 class NotificationBell {
   NotificationBell._();
 
+  static Widget _buildBadge(int count, RetroColors colors) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: RetroTheme.yellow,
+        shape: BoxShape.circle,
+        border: Border.all(color: colors.border, width: 1.5),
+      ),
+      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+      child: Text(
+        count > 9 ? '9+' : '$count',
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+          color: Colors.black, // text on yellow accent
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
   /// Bell icon for use in AppBar `actions` lists.
   static Widget appBarIcon(BuildContext context) {
+    final colors = RetroColors.of(context);
     return StreamBuilder<int>(
       stream: NotificationService.instance.unreadCountStream,
       initialData: NotificationService.instance.unreadCount,
@@ -21,7 +43,9 @@ class NotificationBell {
             behavior: HitTestBehavior.opaque,
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+              MaterialPageRoute(
+                builder: (_) => const NotificationCenterScreen(),
+              ),
             ),
             child: SizedBox(
               width: 44,
@@ -33,25 +57,16 @@ class NotificationBell {
                   child: Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      const Icon(LucideIcons.bell, size: 24, color: Colors.black),
+                      Icon(
+                        LucideIcons.bell,
+                        size: 24,
+                        color: colors.iconDefault,
+                      ),
                       if (count > 0)
                         Positioned(
                           right: -6,
                           top: -4,
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: RetroTheme.pink,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.black, width: 1.5),
-                            ),
-                            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                            child: Text(
-                              count > 9 ? '9+' : '$count',
-                              style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.black),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
+                          child: _buildBadge(count, colors),
                         ),
                     ],
                   ),
@@ -66,6 +81,7 @@ class NotificationBell {
 
   /// Floating retro-styled bell button (for screens without AppBar).
   static Widget floating(BuildContext context) {
+    final colors = RetroColors.of(context);
     return StreamBuilder<int>(
       stream: NotificationService.instance.unreadCountStream,
       initialData: NotificationService.instance.unreadCount,
@@ -80,42 +96,21 @@ class NotificationBell {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: count > 0 ? RetroTheme.pink : RetroTheme.surface,
+              color: count > 0 ? RetroTheme.mint : colors.surface,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.black, width: 2),
-              boxShadow: const [
-                BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
-              ],
+              border: Border.all(color: colors.border, width: 2),
+              boxShadow: RetroTheme.shadowSmOf(context),
             ),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                const Center(
-                  child: Icon(LucideIcons.bell, size: 18, color: Colors.black),
+                Center(
+                  child: Icon(LucideIcons.bell, size: 18,
+                    color: count > 0 ? Colors.black : colors.iconDefault, // black on mint accent
+                  ),
                 ),
                 if (count > 0)
-                  Positioned(
-                    right: -4,
-                    top: -4,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: RetroTheme.yellow,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.black, width: 1.5),
-                      ),
-                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                      child: Text(
-                        count > 9 ? '9+' : '$count',
-                        style: const TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.black,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
+                  Positioned(right: -4, top: -4, child: _buildBadge(count, colors)),
               ],
             ),
           ),

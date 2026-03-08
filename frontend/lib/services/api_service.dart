@@ -19,9 +19,13 @@ class ApiService {
 
   static Stream<SseEvent> validateStream(String idea, {String? category}) {
     final controller = StreamController<SseEvent>();
-    _startSseStream(idea, controller, category: category).catchError((Object err) {
+    _startSseStream(idea, controller, category: category).catchError((
+      Object err,
+    ) {
       if (!controller.isClosed) {
-        controller.add(SseEvent(event: 'error', data: {'message': err.toString()}));
+        controller.add(
+          SseEvent(event: 'error', data: {'message': err.toString()}),
+        );
         controller.close();
       }
     });
@@ -38,16 +42,20 @@ class ApiService {
       final payload = <String, dynamic>{'idea': idea};
       if (category != null) payload['category'] = category;
 
-      final request = http.Request('POST', Uri.parse('$_baseUrl/validate/stream'))
-        ..headers['Content-Type'] = 'application/json'
-        ..headers['Accept'] = 'text/event-stream'
-        ..headers['Cache-Control'] = 'no-cache'
-        ..body = jsonEncode(payload);
+      final request =
+          http.Request('POST', Uri.parse('$_baseUrl/validate/stream'))
+            ..headers['Content-Type'] = 'application/json'
+            ..headers['Accept'] = 'text/event-stream'
+            ..headers['Cache-Control'] = 'no-cache'
+            ..body = jsonEncode(payload);
 
-      final streamedResponse = await client.send(request).timeout(
-        _connectionTimeout,
-        onTimeout: () => throw TimeoutException('Connection to backend timed out'),
-      );
+      final streamedResponse = await client
+          .send(request)
+          .timeout(
+            _connectionTimeout,
+            onTimeout: () =>
+                throw TimeoutException('Connection to backend timed out'),
+          );
 
       if (streamedResponse.statusCode != 200) {
         final body = await streamedResponse.stream.bytesToString();
@@ -57,9 +65,10 @@ class ApiService {
       String currentEvent = 'message';
       String currentData = '';
 
-      await for (final line in streamedResponse.stream
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
+      await for (final line
+          in streamedResponse.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
         if (controller.isClosed) break;
 
         if (line.startsWith('event:')) {
@@ -88,11 +97,13 @@ class ApiService {
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
       final response = await request.send().timeout(
         const Duration(seconds: 30),
-        onTimeout: () => throw TimeoutException('Transcription request timed out'),
+        onTimeout: () =>
+            throw TimeoutException('Transcription request timed out'),
       );
       if (response.statusCode == 200) {
         final body = await response.stream.bytesToString();
-        return (jsonDecode(body) as Map<String, dynamic>)['transcript'] as String?;
+        return (jsonDecode(body) as Map<String, dynamic>)['transcript']
+            as String?;
       }
     } catch (e) {
       // ignore, caller handles null return
@@ -103,7 +114,8 @@ class ApiService {
   /// Fetch all active (pending/running) validation jobs.
   static Future<List<Map<String, dynamic>>> fetchActiveJobs() async {
     try {
-      final resp = await http.get(Uri.parse('$_baseUrl/validation-jobs'))
+      final resp = await http
+          .get(Uri.parse('$_baseUrl/validation-jobs'))
           .timeout(const Duration(seconds: 5));
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -116,12 +128,62 @@ class ApiService {
   /// Fetch a single validation job by ID (for poll mode).
   static Future<Map<String, dynamic>?> fetchValidationJob(String jobId) async {
     try {
-      final resp = await http.get(Uri.parse('$_baseUrl/validation-jobs/$jobId'))
+      final resp = await http
+          .get(Uri.parse('$_baseUrl/validation-jobs/$jobId'))
           .timeout(const Duration(seconds: 5));
       if (resp.statusCode == 200) {
         return jsonDecode(resp.body) as Map<String, dynamic>;
       }
     } catch (_) {}
     return null;
+  }
+
+  /// Cancel a running validation job.
+  static Future<void> cancelValidationJob(String jobId) async {
+    try {
+      await http
+          .post(Uri.parse('$_baseUrl/validation-jobs/$jobId/cancel'))
+          .timeout(const Duration(seconds: 5));
+    } catch (_) {}
+  }
+
+  static Future<void> registerPushToken({
+    required String token,
+    required String platform,
+  }) async {
+    final uri = Uri.parse('$_baseUrl/push-tokens');
+    final resp = await http
+        .post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'token': token, 'platform': platform}),
+        )
+        .timeout(
+          _connectionTimeout,
+          onTimeout: () =>
+              throw TimeoutException('Push token registration timed out'),
+        );
+
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw Exception('Push token registration failed: ${resp.body}');
+    }
+  }
+
+  static Future<void> unregisterPushToken(String token) async {
+    final uri = Uri.parse('$_baseUrl/push-tokens/unregister');
+    final resp = await http
+        .post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'token': token}),
+        )
+        .timeout(
+          _connectionTimeout,
+          onTimeout: () =>
+              throw TimeoutException('Push token unregister timed out'),
+        );
+    if (resp.statusCode < 200 || resp.statusCode >= 300) {
+      throw Exception('Push token unregister failed: ${resp.body}');
+    }
   }
 }

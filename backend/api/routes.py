@@ -15,7 +15,14 @@ from services.ai_analyzer import (
 from services.discovery import discover_competitors_and_scrape
 from services.community_scraper import CommunityScraperService
 from services.audio_processor import transcribe_audio
-from services.db import save_validation_result, send_notification, create_validation_job, update_validation_job
+from services.db import (
+    save_validation_result,
+    send_notification,
+    create_validation_job,
+    update_validation_job,
+    upsert_push_token,
+    delete_push_token,
+)
 import asyncio
 import json as _json
 import os
@@ -29,7 +36,7 @@ from google import genai as _genai
 
 logger = logging.getLogger(__name__)
 
-_executor = ThreadPoolExecutor(max_workers=4)
+_executor = ThreadPoolExecutor(max_workers=8)
 
 _CATEGORY_LABELS = {
     "mobile_app": "Mobile App",
@@ -69,6 +76,15 @@ class ValidationRequest(BaseModel):
     model_provider: str = "gemini"
     category: Optional[str] = None
 
+
+class PushTokenRequest(BaseModel):
+    token: str
+    platform: str
+
+
+class PushTokenDeleteRequest(BaseModel):
+    token: str
+
 @router.post("/transcribe")
 async def transcribe_voice_memo(file: UploadFile = File(...)):
     if not file:
@@ -88,6 +104,18 @@ async def transcribe_voice_memo(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Failed to transcribe audio: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to transcribe audio: {str(e)}")
+
+
+@router.post("/push-tokens")
+async def register_push_token(request: PushTokenRequest):
+    upsert_push_token(request.token, request.platform)
+    return {"status": "ok"}
+
+
+@router.post("/push-tokens/unregister")
+async def unregister_push_token(request: PushTokenDeleteRequest):
+    delete_push_token(request.token)
+    return {"status": "ok"}
 
 @router.post("/validate", response_model=IdeaValidationResult)
 async def validate_idea(request: ValidationRequest):
@@ -351,10 +379,20 @@ async def validate_idea_stream(request: ValidationRequest):
     _executor.submit(_run_validation_pipeline, progress_q, request.idea, request.category)
 
     async def event_generator() -> AsyncGenerator[dict, None]:
+        import time
+        start = time.monotonic()
+        timeout = 300  # 5 minutes max
         while True:
+            if time.monotonic() - start > timeout:
+                yield {"event": "error", "data": _json.dumps({"message": "Pipeline timed out after 5 minutes."})}
+                return
+            # Use asyncio.to_thread to avoid blocking the event loop
             try:
-                event = progress_q.get(timeout=0.5)
-            except _queue.Empty:
+                event = await asyncio.wait_for(
+                    asyncio.to_thread(progress_q.get, True, 1),
+                    timeout=2,
+                )
+            except (asyncio.TimeoutError, _queue.Empty):
                 continue
             if event is None:
                 # Pipeline finished (sentinel)
@@ -382,3 +420,14 @@ async def get_validation_job_status(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.post("/validation-jobs/{job_id}/cancel")
+async def cancel_validation_job(job_id: str):
+    """Mark a validation job as cancelled."""
+    from services.db import get_validation_job
+    job = get_validation_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    update_validation_job(job_id, {"status": "cancelled"})
+    return {"status": "cancelled"}

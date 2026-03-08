@@ -113,8 +113,9 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     return Scaffold(
-      backgroundColor: RetroTheme.background,
+      backgroundColor: colors.background,
       appBar: AppBar(
         title: const Text(
           'RESEARCH LAB',
@@ -138,8 +139,9 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
   }
 
   Widget _buildBody() {
+    final colors = RetroColors.of(context);
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5));
+      return Center(child: CircularProgressIndicator(color: colors.text, strokeWidth: 2.5));
     }
     if (_errorMessage != null) {
       return Center(
@@ -150,7 +152,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_errorMessage!, style: const TextStyle(fontSize: RetroTheme.fontMd)),
+                Text(_errorMessage!, style: const TextStyle(fontSize: RetroTheme.fontMd, color: Colors.black)),
                 const SizedBox(height: RetroTheme.spacingMd),
                 RetroButton(text: 'RETRY', onPressed: _loadTopics, color: RetroTheme.yellow),
               ],
@@ -166,9 +168,9 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(LucideIcons.microscope, size: 48, color: Colors.black26),
+              Icon(LucideIcons.microscope, size: 48, color: colors.iconMuted),
               const SizedBox(height: RetroTheme.spacingMd),
-              const Text('No research topics yet', style: TextStyle(fontSize: RetroTheme.fontLg, color: Colors.black45)),
+              Text('No research topics yet', style: TextStyle(fontSize: RetroTheme.fontLg, color: colors.textSubtle)),
               const SizedBox(height: RetroTheme.spacingMd),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 240),
@@ -186,7 +188,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
     }
 
     return RefreshIndicator(
-      color: Colors.black,
+      color: colors.text,
       onRefresh: _loadTopics,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(
@@ -227,7 +229,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
               decoration: BoxDecoration(
                 color: _domainColor(domain),
                 borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
-                border: Border.all(color: RetroTheme.border, width: RetroTheme.borderWidthMedium),
+                border: Border.all(color: RetroColors.of(context).border, width: RetroTheme.borderWidthMedium),
               ),
               child: Icon(_domainIcon(domain), color: Colors.black, size: 20),
             ),
@@ -243,7 +245,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
                   if (keywords.isNotEmpty)
                     Text(
                       keywords.join(', '),
-                      style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54),
+                      style: TextStyle(fontSize: RetroTheme.fontSm, color: RetroColors.of(context).textMuted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -263,7 +265,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
                 ],
               ),
             ),
-            const Icon(LucideIcons.chevronRight, color: Colors.black38, size: 18),
+            Icon(LucideIcons.chevronRight, color: RetroColors.of(context).iconMuted, size: 18),
           ],
         ),
       ),
@@ -271,18 +273,19 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
   }
 
   Widget _buildPulsingBadge(String step) {
+    final colors = RetroColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: RetroTheme.badgeDecoration(RetroTheme.mint),
+      decoration: RetroTheme.badgeDecoration(RetroTheme.mint, borderColor: colors.border),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 10, height: 10,
-            child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.black),
+            child: CircularProgressIndicator(strokeWidth: 1.5, color: Colors.black), // on mint accent
           ),
           const SizedBox(width: 4),
-          Text(step.replaceAll('_', ' '), style: const TextStyle(fontSize: RetroTheme.fontXs, fontWeight: FontWeight.w600)),
+          Text(step.replaceAll('_', ' '), style: const TextStyle(fontSize: RetroTheme.fontXs, fontWeight: FontWeight.w600, color: Colors.black)),
         ],
       ),
     );
@@ -291,7 +294,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
   Widget _buildBadge(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: RetroTheme.badgeDecoration(color),
+      decoration: RetroTheme.badgeDecoration(color, borderColor: RetroColors.of(context).border),
       child: Text(text, style: RetroTheme.badgeStyle),
     );
   }

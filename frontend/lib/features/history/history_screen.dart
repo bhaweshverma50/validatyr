@@ -6,6 +6,7 @@ import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
 import '../../services/api_service.dart';
 import '../../services/supabase_service.dart';
+import '../../services/validation_job_recovery.dart';
 import '../loading/loading_screen.dart';
 import '../results/results_screen.dart';
 import '../home/home_screen.dart';
@@ -23,6 +24,7 @@ class HistoryScreenState extends State<HistoryScreen> {
   String? _errorMessage;
   List<Map<String, dynamic>> _runningJobs = [];
   Timer? _autoRefreshTimer;
+  DateTime? _lastRunningSeenAt;
 
   @override
   void initState() {
@@ -47,17 +49,22 @@ class HistoryScreenState extends State<HistoryScreen> {
       });
     }
     try {
+      final now = DateTime.now();
       final results = await Future.wait([
         ApiService.fetchActiveJobs(),
         SupabaseService.fetchHistory(),
       ]);
       if (mounted) {
+        final runningJobs = results[0];
         setState(() {
-          _runningJobs = results[0];
+          _runningJobs = runningJobs;
           _items = results[1];
           _isLoading = false;
           _errorMessage = null;
         });
+        if (runningJobs.isNotEmpty) {
+          _lastRunningSeenAt = now;
+        }
         _manageAutoRefresh();
       }
     } catch (e) {
@@ -71,7 +78,12 @@ class HistoryScreenState extends State<HistoryScreen> {
   }
 
   void _manageAutoRefresh() {
-    if (_runningJobs.isNotEmpty) {
+    final shouldRefresh = shouldKeepHistoryRefreshing(
+      hasRunningJobs: _runningJobs.isNotEmpty,
+      lastRunningSeenAt: _lastRunningSeenAt,
+      now: DateTime.now(),
+    );
+    if (shouldRefresh) {
       _autoRefreshTimer ??= Timer.periodic(
         const Duration(seconds: 5),
         (_) => _load(silent: true),
@@ -82,34 +94,45 @@ class HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  Future<bool> _confirm(
-      {required String title, required String message}) async {
+  Future<bool> _confirm({
+    required String title,
+    required String message,
+  }) async {
+    final colors = RetroColors.of(context);
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: RetroTheme.background,
+        backgroundColor: colors.surface,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: Colors.black, width: 3)),
-        title:
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-        content: Text(message),
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: colors.border, width: 3),
+        ),
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: colors.text)),
+        content: Text(message, style: TextStyle(color: colors.text)),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel',
-                  style: TextStyle(fontWeight: FontWeight.w700))),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(fontWeight: FontWeight.w700, color: colors.textMuted),
+            ),
+          ),
           TextButton(
             style: TextButton.styleFrom(
-                backgroundColor: RetroTheme.pink,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    side:
-                        const BorderSide(color: Colors.black, width: 2))),
+              backgroundColor: RetroTheme.pink,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+                side: BorderSide(color: colors.border, width: 2),
+              ),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete',
-                style: TextStyle(
-                    color: Colors.black, fontWeight: FontWeight.w900)),
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           ),
         ],
       ),
@@ -119,8 +142,9 @@ class HistoryScreenState extends State<HistoryScreen> {
 
   Future<void> _delete(dynamic id) async {
     if (!await _confirm(
-        title: 'Delete Validation',
-        message: 'Permanently delete this result?')) {
+      title: 'Delete Validation',
+      message: 'Permanently delete this result?',
+    )) {
       return;
     }
     try {
@@ -128,17 +152,18 @@ class HistoryScreenState extends State<HistoryScreen> {
       setState(() => _items.removeWhere((i) => i['id'] == id));
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
       }
     }
   }
 
   Future<void> _deleteAll() async {
     if (!await _confirm(
-        title: 'Delete All History',
-        message:
-            'Permanently delete all ${_items.length} validations?')) {
+      title: 'Delete All History',
+      message: 'Permanently delete all ${_items.length} validations?',
+    )) {
       return;
     }
     try {
@@ -146,8 +171,9 @@ class HistoryScreenState extends State<HistoryScreen> {
       setState(() => _items.clear());
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Delete all failed: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Delete all failed: $e')));
       }
     }
   }
@@ -157,8 +183,18 @@ class HistoryScreenState extends State<HistoryScreen> {
     try {
       final dt = DateTime.parse(iso).toLocal();
       const m = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       return '${m[dt.month - 1]} ${dt.day}, ${dt.year}';
     } catch (_) {
@@ -168,21 +204,26 @@ class HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('HISTORY',
-            style: TextStyle(
-                fontFamily: 'Outfit',
-                color: Colors.black,
-                fontWeight: FontWeight.w900,
-                fontSize: RetroTheme.fontDisplay,
-                letterSpacing: -0.5)),
+        title: Text(
+          'HISTORY',
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            color: colors.text,
+            fontWeight: FontWeight.w900,
+            fontSize: RetroTheme.fontDisplay,
+            letterSpacing: -0.5,
+          ),
+        ),
         actions: [
           if (_items.isNotEmpty)
             IconButton(
-                icon: const Icon(LucideIcons.trash2),
-                tooltip: 'Delete All',
-                onPressed: _deleteAll),
+              icon: const Icon(LucideIcons.trash2),
+              tooltip: 'Delete All',
+              onPressed: _deleteAll,
+            ),
           const SizedBox(width: 8),
         ],
       ),
@@ -191,10 +232,11 @@ class HistoryScreenState extends State<HistoryScreen> {
   }
 
   Widget _buildBody() {
+    final colors = RetroColors.of(context);
     if (_isLoading) {
-      return const Center(
-          child: CircularProgressIndicator(
-              color: Colors.black, strokeWidth: 3));
+      return Center(
+        child: CircularProgressIndicator(color: colors.text, strokeWidth: 3),
+      );
     }
 
     if (_errorMessage != null) {
@@ -204,27 +246,38 @@ class HistoryScreenState extends State<HistoryScreen> {
           child: RetroCard(
             backgroundColor: RetroTheme.pink,
             child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Row(children: [
-                    Icon(LucideIcons.alertTriangle, size: 20),
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Row(
+                  children: [
+                    Icon(LucideIcons.alertTriangle, size: 20, color: Colors.black),
                     SizedBox(width: 8),
-                    Text('FAILED TO LOAD',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w900, fontSize: 16))
-                  ]),
-                  const SizedBox(height: 10),
-                  Text(_errorMessage!,
-                      style: const TextStyle(fontSize: 13)),
-                  const SizedBox(height: 16),
-                  RetroButton(
-                      text: 'Retry',
-                      color: RetroTheme.yellow,
-                      onPressed: _load,
-                      icon: const Icon(LucideIcons.refreshCw,
-                          size: 18, color: Colors.black)),
-                ]),
+                    Text(
+                      'FAILED TO LOAD',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(_errorMessage!, style: const TextStyle(fontSize: 13, color: Colors.black)),
+                const SizedBox(height: 16),
+                RetroButton(
+                  text: 'Retry',
+                  color: RetroTheme.yellow,
+                  onPressed: _load,
+                  icon: const Icon(
+                    LucideIcons.refreshCw,
+                    size: 18,
+                    color: Colors.black,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -232,20 +285,24 @@ class HistoryScreenState extends State<HistoryScreen> {
 
     if (_items.isEmpty && _runningJobs.isEmpty) {
       return Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(LucideIcons.inbox, size: 56, color: Colors.black26),
-          const SizedBox(height: 16),
-          Text('No validations yet.',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleLarge
-                  ?.copyWith(color: RetroTheme.textMuted)),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.inbox, size: 56, color: colors.iconMuted),
+            const SizedBox(height: 16),
+            Text(
+              'No validations yet.',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(color: colors.textMuted),
+            ),
+          ],
+        ),
       );
     }
 
     return RefreshIndicator(
-      color: Colors.black,
+      color: colors.text,
       onRefresh: _load,
       child: ListView(
         padding: const EdgeInsets.symmetric(
@@ -254,120 +311,163 @@ class HistoryScreenState extends State<HistoryScreen> {
         ),
         children: [
           if (_runningJobs.isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.only(bottom: 8),
-              child: Text('RUNNING',
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.5,
-                      color: Colors.black54)),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'RUNNING',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                  color: colors.textMuted,
+                ),
+              ),
             ),
-            ..._runningJobs.map((job) => Padding(
-              padding: const EdgeInsets.only(bottom: RetroTheme.spacingMd),
-              child: _buildRunningJobCard(job),
-            )),
+            ..._runningJobs.map(
+              (job) => Padding(
+                padding: const EdgeInsets.only(bottom: RetroTheme.spacingMd),
+                child: _buildRunningJobCard(job),
+              ),
+            ),
             if (_items.isNotEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 4, bottom: 8),
-                child: Text('COMPLETED',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.5,
-                        color: Colors.black54)),
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 8),
+                child: Text(
+                  'COMPLETED',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.5,
+                    color: colors.textMuted,
+                  ),
+                ),
               ),
           ],
-          ..._items.map((item) => Padding(
-            padding: const EdgeInsets.only(bottom: RetroTheme.spacingMd),
-            child: _buildItem(item),
-          )),
+          ..._items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: RetroTheme.spacingMd),
+              child: _buildItem(item),
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildItem(Map<String, dynamic> item) {
-    final id = item['id'];  // raw value (int from Supabase bigserial)
+    final colors = RetroColors.of(context);
+    final id = item['id']; // raw value (int from Supabase bigserial)
     final idea = item['idea'] as String? ?? '';
     final score = (item['opportunity_score'] as num?)?.toDouble() ?? 0;
     final scoreColor = RetroTheme.scoreColor(score);
-    final displayIdea =
-        idea.length > 80 ? '${idea.substring(0, 80)}...' : idea;
+    final displayIdea = idea.length > 80 ? '${idea.substring(0, 80)}...' : idea;
 
     return RetroCard(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.surface,
       padding: const EdgeInsets.all(16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-                color: scoreColor,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.black, width: 2.5)),
-            child: Center(
-                child: Text('${score.toInt()}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: scoreColor,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colors.border, width: 2.5),
+                ),
+                child: Center(
+                  child: Text(
+                    '${score.toInt()}',
                     style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.black))),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-              child: Column(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.black, // on accent bg
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                Text(displayIdea,
-                    style: const TextStyle(
+                    Text(
+                      displayIdea,
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        height: 1.4)),
-                const SizedBox(height: 4),
-                Text(_fmtDate(item['created_at'] as String?),
-                    style: const TextStyle(
+                        height: 1.4,
+                        color: colors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _fmtDate(item['created_at'] as String?),
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: Colors.black38)),
-              ])),
-        ]),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(
-              child: _SmallBtn(
+                        color: colors.textSubtle,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: _SmallBtn(
                   label: 'View',
                   color: RetroTheme.mint,
                   icon: LucideIcons.eye,
                   onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => ResultsScreen(
-                              result:
-                                  Map<String, dynamic>.from(item)))))),
-          const SizedBox(width: 8),
-          Expanded(
-              child: _SmallBtn(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ResultsScreen(
+                        result: Map<String, dynamic>.from(item),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SmallBtn(
                   label: 'Edit & Rerun',
                   color: RetroTheme.blue,
                   icon: LucideIcons.refreshCw,
                   onTap: () {
                     Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => HomeScreen(initialIdea: idea)));
-                  })),
-          const SizedBox(width: 8),
-          Expanded(
-              child: _SmallBtn(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => HomeScreen(initialIdea: idea),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _SmallBtn(
                   label: 'Delete',
                   color: RetroTheme.pink,
                   icon: LucideIcons.trash2,
-                  onTap: () => _delete(id))),
-        ]),
-      ]),
+                  onTap: () => _delete(id),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
+
   Widget _buildRunningJobCard(Map<String, dynamic> job) {
     final idea = job['idea'] as String? ?? '';
     final agent = job['current_step'] as String? ?? 'Starting...';
@@ -389,29 +489,44 @@ class HistoryScreenState extends State<HistoryScreen> {
         ).then((_) => _load(silent: true));
       },
       child: RetroCard(
-        backgroundColor: RetroTheme.yellow.withAlpha(60),
+        backgroundColor: RetroTheme.yellow,
         padding: const EdgeInsets.all(14),
-        child: Row(children: [
-          const _PulsingDot(),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(displayIdea,
-                  style: const TextStyle(
+        child: Row(
+          children: [
+            const _PulsingDot(),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayIdea,
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      height: 1.3)),
-              const SizedBox(height: 4),
-              Text('$agent · Step $stepNum/$total',
-                  style: const TextStyle(
+                      height: 1.3,
+                      color: Colors.black, // on yellow accent bg
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$agent · Step $stepNum/$total',
+                    style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black54)),
-            ],
-          )),
-          const Icon(LucideIcons.chevronRight, size: 18, color: Colors.black38),
-        ]),
+                      color: Color(0xFF475569), // muted on yellow
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              LucideIcons.chevronRight,
+              size: 18,
+              color: Color(0xFF475569), // on yellow accent bg
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -423,11 +538,12 @@ class _SmallBtn extends StatefulWidget {
   final IconData icon;
   final VoidCallback onTap;
 
-  const _SmallBtn(
-      {required this.label,
-      required this.color,
-      required this.icon,
-      required this.onTap});
+  const _SmallBtn({
+    required this.label,
+    required this.color,
+    required this.icon,
+    required this.onTap,
+  });
 
   @override
   State<_SmallBtn> createState() => _SmallBtnState();
@@ -438,6 +554,7 @@ class _SmallBtnState extends State<_SmallBtn> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) {
@@ -447,30 +564,29 @@ class _SmallBtnState extends State<_SmallBtn> {
       onTapCancel: () => setState(() => _pressed = false),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 100),
-        transform:
-            Matrix4.translationValues(_pressed ? 2 : 0, _pressed ? 2 : 0, 0),
+        transform: Matrix4.translationValues(
+          _pressed ? 2 : 0,
+          _pressed ? 2 : 0,
+          0,
+        ),
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
         decoration: BoxDecoration(
           color: widget.color,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.black, width: 2),
+          border: Border.all(color: colors.border, width: 2),
           boxShadow: _pressed
               ? []
-              : const [
-                  BoxShadow(
-                      color: Colors.black,
-                      offset: Offset(2, 2),
-                      blurRadius: 0)
-                ],
+              : RetroTheme.shadowSmOf(context),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(widget.icon, size: 13, color: Colors.black),
             const SizedBox(width: 5),
-            Text(widget.label,
-                style: const TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w800)),
+            Text(
+              widget.label,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.black),
+            ),
           ],
         ),
       ),
@@ -492,8 +608,9 @@ class _PulsingDotState extends State<_PulsingDot>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800))
-      ..repeat(reverse: true);
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -504,6 +621,7 @@ class _PulsingDotState extends State<_PulsingDot>
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     return FadeTransition(
       opacity: Tween<double>(begin: 0.3, end: 1.0).animate(_ctrl),
       child: Container(
@@ -512,7 +630,7 @@ class _PulsingDotState extends State<_PulsingDot>
         decoration: BoxDecoration(
           color: RetroTheme.yellow,
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.black, width: 1.5),
+          border: Border.all(color: colors.border, width: 1.5),
         ),
       ),
     );

@@ -97,8 +97,9 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     return Scaffold(
-      backgroundColor: RetroTheme.background,
+      backgroundColor: colors.background,
       appBar: AppBar(
         title: const Text(
           'NEW RESEARCH TOPIC',
@@ -134,15 +135,18 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 150),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: RetroTheme.chipDecoration(selected: isSelected, color: d.color),
+                      decoration: RetroTheme.chipDecorationOf(context, selected: isSelected, color: d.color),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(d.icon, size: 15, color: Colors.black),
+                          Icon(d.icon, size: 15,
+                            color: isSelected ? Colors.black : RetroColors.of(context).text,
+                          ),
                           const SizedBox(width: 6),
                           Text(d.label, style: TextStyle(
                             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                             fontSize: RetroTheme.fontMd,
+                            color: isSelected ? Colors.black : RetroColors.of(context).text,
                           )),
                         ],
                       ),
@@ -156,7 +160,7 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
 
             _buildSectionLabel('KEYWORDS'),
             const SizedBox(height: RetroTheme.spacingXs),
-            const Text('Comma-separated topics to research', style: TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black45)),
+            Text('Comma-separated topics to research', style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textSubtle)),
             const SizedBox(height: RetroTheme.spacingSm),
             TextField(
               controller: _keywordsController,
@@ -169,7 +173,7 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
 
             _buildSectionLabel('FOCUS AREAS'),
             const SizedBox(height: RetroTheme.spacingXs),
-            const Text('Optional — narrow the research scope', style: TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black45)),
+            Text('Optional — narrow the research scope', style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textSubtle)),
             const SizedBox(height: RetroTheme.spacingSm),
             TextField(
               controller: _interestsController,
@@ -213,10 +217,11 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
                         duration: const Duration(milliseconds: 150),
                         width: 48,
                         alignment: Alignment.center,
-                        decoration: RetroTheme.chipDecoration(selected: isSelected, color: RetroTheme.blue),
+                        decoration: RetroTheme.chipDecorationOf(context, selected: isSelected, color: RetroTheme.blue),
                         child: Text(d.label, style: TextStyle(
                           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                           fontSize: RetroTheme.fontSm,
+                          color: isSelected ? Colors.black : RetroColors.of(context).text,
                         )),
                       ),
                     );
@@ -237,10 +242,10 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
                     builder: (context, child) => Theme(
                       data: Theme.of(context).copyWith(
                         timePickerTheme: TimePickerThemeData(
-                          backgroundColor: RetroTheme.background,
+                          backgroundColor: colors.background,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(RetroTheme.radiusLg),
-                            side: const BorderSide(color: Colors.black, width: RetroTheme.borderWidthThick),
+                            side: BorderSide(color: colors.border, width: RetroTheme.borderWidthThick),
                           ),
                         ),
                       ),
@@ -252,9 +257,9 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: colors.surface,
                     borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
-                    border: Border.all(color: Colors.black, width: RetroTheme.borderWidthMedium),
+                    border: Border.all(color: colors.border, width: RetroTheme.borderWidthMedium),
                     boxShadow: RetroTheme.sharpShadowSm,
                   ),
                   child: Row(
@@ -266,7 +271,7 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
                         style: const TextStyle(fontSize: RetroTheme.fontLg, fontWeight: FontWeight.w700),
                       ),
                       const Spacer(),
-                      const Icon(LucideIcons.chevronDown, size: 16, color: Colors.black45),
+                      Icon(LucideIcons.chevronDown, size: 16, color: colors.iconMuted),
                     ],
                   ),
                 ),
@@ -295,13 +300,14 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
   }
 
   Widget _buildRadio(String value, String label, String subtitle) {
+    final colors = RetroColors.of(context);
     return RadioListTile<String>(
       value: value,
       groupValue: _schedule,
       onChanged: (v) => setState(() => _schedule = v ?? 'manual'),
       title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: RetroTheme.fontMd)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black45)),
-      activeColor: Colors.black,
+      subtitle: Text(subtitle, style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textSubtle)),
+      activeColor: colors.text,
       contentPadding: const EdgeInsets.symmetric(horizontal: RetroTheme.spacingSm),
       dense: true,
     );
