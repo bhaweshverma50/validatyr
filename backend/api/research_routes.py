@@ -1,11 +1,12 @@
 """API routes for the research feature."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import BaseModel
 from typing import List, Literal, Optional
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import logging
+import os
 
 from services.research_models import ResearchTopic, ResearchReport, ResearchJobStatus
 from services.research_db import (
@@ -135,6 +136,83 @@ async def remove_topic(topic_id: str):
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete topic")
     return {"deleted": True}
+
+
+@router.post("/cron-trigger")
+async def cron_trigger(x_cloudscheduler: Optional[str] = Header(None, alias="X-CloudScheduler")):
+    """Called by Cloud Scheduler to run all due scheduled research topics.
+
+    Cloud Scheduler hits this every 15 minutes. We check which topics
+    have a schedule and run them. The schedule matching is simple:
+    Cloud Scheduler calls frequently, we run all active scheduled topics.
+    To avoid double-runs, we check if a job ran recently (within 23h for daily,
+    6 days for weekly).
+    """
+    from services.research_db import get_latest_job_for_topic
+    from datetime import datetime, timezone, timedelta
+
+    topics = list_research_topics()
+    started = []
+
+    for topic in topics:
+        if not topic.get("is_active") or not topic.get("schedule_cron"):
+            continue
+
+        topic_id = topic["id"]
+        schedule = topic["schedule_cron"]
+        parts = schedule.split("|")
+        kind = parts[0]
+
+        # Check if already ran recently
+        latest_job = get_latest_job_for_topic(topic_id)
+        if latest_job:
+            job_created = latest_job.get("created_at", "")
+            if job_created:
+                try:
+                    created_dt = datetime.fromisoformat(job_created.replace("Z", "+00:00"))
+                    now = datetime.now(timezone.utc)
+                    if kind == "daily" and (now - created_dt) < timedelta(hours=23):
+                        continue
+                    if kind == "weekly" and (now - created_dt) < timedelta(days=6):
+                        continue
+                except (ValueError, TypeError):
+                    pass
+
+        # Check if the current time matches the schedule window (±30 min)
+        now = datetime.now(timezone.utc)
+        should_run = False
+
+        if kind == "daily":
+            target_h, target_m = (int(x) for x in parts[1].split(":")) if len(parts) >= 2 else (6, 0)
+            diff_min = abs((now.hour * 60 + now.minute) - (target_h * 60 + target_m))
+            if diff_min <= 30 or diff_min >= (24 * 60 - 30):
+                should_run = True
+
+        elif kind == "weekly":
+            dow_map = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6}  # schedule 1=Mon → weekday() 0=Mon
+            target_dow = dow_map.get(int(parts[1]), 0) if len(parts) >= 2 else 0
+            target_h, target_m = (int(x) for x in parts[2].split(":")) if len(parts) >= 3 else (6, 0)
+            if now.weekday() == target_dow:
+                diff_min = abs((now.hour * 60 + now.minute) - (target_h * 60 + target_m))
+                if diff_min <= 30 or diff_min >= (24 * 60 - 30):
+                    should_run = True
+
+        if not should_run:
+            continue
+
+        loop = asyncio.get_running_loop()
+        loop.run_in_executor(
+            _executor,
+            lambda tid=topic_id, t=topic: _run_pipeline_safe(
+                domain=t.get("domain", "general"),
+                keywords=list(t.get("keywords", [])),
+                interests=list(t.get("interests", [])),
+                topic_id=tid,
+            ),
+        )
+        started.append(topic_id)
+
+    return {"triggered": len(started), "topic_ids": started}
 
 
 @router.post("/start")

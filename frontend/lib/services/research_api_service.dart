@@ -5,7 +5,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class ResearchApiService {
   static String get _baseUrl {
     final host = dotenv.env['BACKEND_HOST'] ?? '127.0.0.1';
-    return 'http://$host:8000/api/v1/research';
+    final isLocal = host == '127.0.0.1' || host == 'localhost' || host.startsWith('192.168.');
+    final scheme = isLocal ? 'http' : 'https';
+    final port = isLocal ? ':8000' : '';
+    return '$scheme://$host$port/api/v1/research';
   }
 
   static Future<Map<String, dynamic>> createTopic({
