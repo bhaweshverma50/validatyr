@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import '../../core/theme/custom_theme.dart';
+import '../../services/api_service.dart';
 import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
 import '../loading/loading_screen.dart';
@@ -19,11 +23,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final TextEditingController _ideaController = TextEditingController();
-  final stt.SpeechToText _speech = stt.SpeechToText();
+  final AudioRecorder _audioRecorder = AudioRecorder();
 
   bool _isLoading = false;
   bool _isRecording = false;
-  bool _speechAvailable = false;
   AnimationController? _pulseController;
   String? _emptyInputError;
   String? _transcribeError;
@@ -39,30 +42,18 @@ class _HomeScreenState extends State<HomeScreen>
     if (widget.initialIdea != null && widget.initialIdea!.isNotEmpty) {
       _ideaController.text = widget.initialIdea!;
     }
-    _initSpeech();
   }
 
-  Future<void> _initSpeech() async {
-    _speechAvailable = await _speech.initialize(
-      onError: (error) {
-        if (mounted) {
-          setState(() {
-            _isRecording = false;
-            _pulseController?.stop();
-            if (error.errorMsg == 'error_no_match') {
-              _transcribeError =
-                  'No speech detected. Try recording again or type your idea.';
-            }
-          });
-        }
-      },
-    );
+  Future<String> _createRecordingPath() async {
+    final tempDir = await getTemporaryDirectory();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    return '${tempDir.path}/validatyr-recording-$timestamp.m4a';
   }
 
   @override
   void dispose() {
     _ideaController.dispose();
-    _speech.stop();
+    _audioRecorder.dispose();
     _pulseController?.dispose();
     super.dispose();
   }
@@ -70,47 +61,81 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _toggleRecording() async {
     try {
       if (_isRecording) {
-        await _speech.stop();
+        final path = await _audioRecorder.stop();
         _pulseController?.stop();
         setState(() {
           _isRecording = false;
         });
-        // If no text was captured, show error
-        if (_ideaController.text.trim().isEmpty) {
-          setState(() => _transcribeError =
-              'No speech detected. Try recording again or type your idea.');
-        }
-      } else {
-        if (!_speechAvailable) {
-          setState(() => _transcribeError =
-              'Speech recognition not available on this device.');
+
+        if (path == null) {
+          setState(
+            () => _transcribeError =
+                'No speech detected. Try recording again or type your idea.',
+          );
           return;
         }
+
+        final audioFile = File(path);
+        final fileSize = await audioFile.length();
+        if (fileSize < 10000) {
+          setState(
+            () => _transcribeError =
+                'No speech detected. Try recording again or type your idea.',
+          );
+          return;
+        }
+
+        setState(() {
+          _isLoading = true;
+          _transcribeError = null;
+        });
+
+        try {
+          final transcript = await ApiService.transcribeAudio(path);
+          if (!mounted) return;
+
+          setState(() {
+            _isLoading = false;
+            if (transcript != null && transcript.trim().isNotEmpty) {
+              _ideaController.text = transcript.trim();
+              _transcribeError = null;
+            } else {
+              _transcribeError =
+                  'No speech detected. Try recording again or type your idea.';
+            }
+          });
+        } finally {
+          if (await audioFile.exists()) {
+            await audioFile.delete();
+          }
+        }
+      } else {
+        final hasPermission = await _audioRecorder.hasPermission();
+        if (!hasPermission) {
+          setState(
+            () => _transcribeError =
+                'Microphone permission is required to record your idea.',
+          );
+          return;
+        }
+
+        final recordingPath = await _createRecordingPath();
+        await _audioRecorder.start(
+          const RecordConfig(encoder: AudioEncoder.aacLc, numChannels: 1),
+          path: recordingPath,
+        );
+
         setState(() {
           _transcribeError = null;
           _emptyInputError = null;
+          _isRecording = true;
         });
         _pulseController?.repeat(reverse: true);
-        setState(() => _isRecording = true);
-        await _speech.listen(
-          onResult: (result) {
-            if (mounted) {
-              setState(() {
-                _ideaController.text = result.recognizedWords;
-              });
-            }
-          },
-          listenFor: const Duration(seconds: 30),
-          pauseFor: const Duration(seconds: 3),
-          listenOptions: stt.SpeechListenOptions(
-            cancelOnError: true,
-            partialResults: true,
-          ),
-        );
       }
     } catch (e) {
       _pulseController?.stop();
       setState(() {
+        _isLoading = false;
         _isRecording = false;
         _transcribeError = 'Recording error: ${e.toString()}';
       });
@@ -120,21 +145,27 @@ class _HomeScreenState extends State<HomeScreen>
   void _validateIdea() {
     final text = _ideaController.text.trim();
     if (text.isEmpty) {
-      setState(() =>
-          _emptyInputError = 'Please enter your app idea before validating.');
+      setState(
+        () =>
+            _emptyInputError = 'Please enter your app idea before validating.',
+      );
       return;
     }
     setState(() => _emptyInputError = null);
     Navigator.push(
-        context, MaterialPageRoute(builder: (_) => LoadingScreen(idea: text, category: _selectedCategory)));
+      context,
+      MaterialPageRoute(
+        builder: (_) => LoadingScreen(idea: text, category: _selectedCategory),
+      ),
+    );
   }
 
   static const List<_CategoryEntry> _categories = [
-    (id: null,          label: 'Auto',     icon: LucideIcons.zap),
-    (id: 'mobile_app',  label: 'Mobile',   icon: LucideIcons.smartphone),
-    (id: 'hardware',    label: 'Hardware',  icon: LucideIcons.cpu),
-    (id: 'fintech',     label: 'FinTech',   icon: LucideIcons.creditCard),
-    (id: 'saas_web',    label: 'SaaS/Web',  icon: LucideIcons.monitor),
+    (id: null, label: 'Auto', icon: LucideIcons.zap),
+    (id: 'mobile_app', label: 'Mobile', icon: LucideIcons.smartphone),
+    (id: 'hardware', label: 'Hardware', icon: LucideIcons.cpu),
+    (id: 'fintech', label: 'FinTech', icon: LucideIcons.creditCard),
+    (id: 'saas_web', label: 'SaaS/Web', icon: LucideIcons.monitor),
   ];
 
   Widget _buildCategorySelector() {
@@ -143,10 +174,15 @@ class _HomeScreenState extends State<HomeScreen>
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 2, bottom: 10),
-          child: Text('IDEA TYPE', style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w800,
-            letterSpacing: 1.8, color: RetroTheme.textMuted,
-          )),
+          child: Text(
+            'IDEA TYPE',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.8,
+              color: RetroTheme.textMuted,
+            ),
+          ),
         ),
         SizedBox(
           height: 44,
@@ -163,7 +199,10 @@ class _HomeScreenState extends State<HomeScreen>
                 onTap: () => setState(() => _selectedCategory = cat.id),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected ? RetroTheme.yellow : Colors.white,
                     borderRadius: BorderRadius.circular(8),
@@ -172,17 +211,31 @@ class _HomeScreenState extends State<HomeScreen>
                       width: isSelected ? 2.5 : 1.5,
                     ),
                     boxShadow: isSelected
-                        ? const [BoxShadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0)]
+                        ? const [
+                            BoxShadow(
+                              color: Colors.black,
+                              offset: Offset(2, 2),
+                              blurRadius: 0,
+                            ),
+                          ]
                         : null,
                   ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(cat.icon, size: 13, color: Colors.black),
-                    const SizedBox(width: 6),
-                    Text(cat.label, style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                    )),
-                  ]),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(cat.icon, size: 13, color: Colors.black),
+                      const SizedBox(width: 6),
+                      Text(
+                        cat.label,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },
@@ -209,11 +262,7 @@ class _HomeScreenState extends State<HomeScreen>
           padding: const EdgeInsets.only(left: 2, bottom: 12),
           child: Row(
             children: [
-              Container(
-                width: 18,
-                height: 2,
-                color: RetroTheme.textMuted,
-              ),
+              Container(width: 18, height: 2, color: RetroTheme.textMuted),
               const SizedBox(width: 8),
               Text(
                 'OR TRY AN EXAMPLE',
@@ -245,17 +294,20 @@ class _HomeScreenState extends State<HomeScreen>
                   });
                 },
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Colors.black, width: 2),
                     boxShadow: const [
                       BoxShadow(
-                          color: Colors.black,
-                          offset: Offset(2, 2),
-                          blurRadius: 0),
+                        color: Colors.black,
+                        offset: Offset(2, 2),
+                        blurRadius: 0,
+                      ),
                     ],
                   ),
                   child: Text(
@@ -286,16 +338,17 @@ class _HomeScreenState extends State<HomeScreen>
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints:
-                const BoxConstraints(maxWidth: RetroTheme.desktopMaxWidth),
+            constraints: const BoxConstraints(
+              maxWidth: RetroTheme.desktopMaxWidth,
+            ),
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
               padding: EdgeInsets.symmetric(
-                  horizontal: horizontalPadding, vertical: 0),
+                horizontal: horizontalPadding,
+                vertical: 0,
+              ),
               child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: screenHeight - 80,
-                ),
+                constraints: BoxConstraints(minHeight: screenHeight - 80),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -339,17 +392,17 @@ class _HomeScreenState extends State<HomeScreen>
         // Badge
         Center(
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
               color: RetroTheme.yellow,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: Colors.black, width: 2),
               boxShadow: const [
                 BoxShadow(
-                    color: Colors.black,
-                    offset: Offset(2, 2),
-                    blurRadius: 0),
+                  color: Colors.black,
+                  offset: Offset(2, 2),
+                  blurRadius: 0,
+                ),
               ],
             ),
             child: const Row(
@@ -377,14 +430,15 @@ class _HomeScreenState extends State<HomeScreen>
         Text(
           'VALIDATYR.',
           style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              color: RetroTheme.pink,
-              shadows: const [
-                Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
-                Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
-                Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
-              ],
-              fontSize: isDesktop ? 56 : 44,
-              height: 1.0),
+            color: RetroTheme.pink,
+            shadows: const [
+              Shadow(color: Colors.black, offset: Offset(1, 1), blurRadius: 0),
+              Shadow(color: Colors.black, offset: Offset(2, 2), blurRadius: 0),
+              Shadow(color: Colors.black, offset: Offset(3, 3), blurRadius: 0),
+            ],
+            fontSize: isDesktop ? 56 : 44,
+            height: 1.0,
+          ),
           textAlign: TextAlign.center,
         ),
 
@@ -394,9 +448,10 @@ class _HomeScreenState extends State<HomeScreen>
         Text(
           'Describe your app idea.\nGet a data-backed market report in 60 seconds.',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontSize: isDesktop ? 17 : 15,
-              height: 1.55,
-              color: RetroTheme.textMuted),
+            fontSize: isDesktop ? 17 : 15,
+            height: 1.55,
+            color: RetroTheme.textMuted,
+          ),
           textAlign: TextAlign.center,
         ),
       ],
@@ -416,113 +471,145 @@ class _HomeScreenState extends State<HomeScreen>
               animation: _pulseController!,
               builder: (_, __) => Container(
                 margin: const EdgeInsets.only(bottom: 12),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: Color.lerp(RetroTheme.pink,
-                      RetroTheme.pink.withAlpha(150), _pulseController!.value),
+                  color: Color.lerp(
+                    RetroTheme.pink,
+                    RetroTheme.pink.withAlpha(150),
+                    _pulseController!.value,
+                  ),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: Colors.black, width: 2),
                 ),
                 child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(LucideIcons.circle, color: Colors.red, size: 10),
-                      SizedBox(width: 8),
-                      Text('Recording... Tap mic to stop',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13)),
-                    ]),
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.circle, color: Colors.red, size: 10),
+                    SizedBox(width: 8),
+                    Text(
+                      'Recording... Tap mic to stop',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
 
           // Text field + mic
-          Stack(children: [
-            TextField(
-              controller: _ideaController,
-              maxLines: 5,
-              enabled: !_isRecording,
-              style:
-                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-              onChanged: (_) {
-                if (_emptyInputError != null) {
-                  setState(() => _emptyInputError = null);
-                }
-              },
-              decoration: InputDecoration(
-                hintText: 'e.g. A social network for dog owners...',
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.only(
-                    left: 16, right: 56, top: 16, bottom: 16),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(
+          Stack(
+            children: [
+              TextField(
+                controller: _ideaController,
+                maxLines: 5,
+                enabled: !_isRecording,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+                onTapOutside: (_) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
+                onChanged: (_) {
+                  if (_emptyInputError != null) {
+                    setState(() => _emptyInputError = null);
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: 'e.g. A social network for dog owners...',
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.only(
+                    left: 16,
+                    right: 56,
+                    top: 16,
+                    bottom: 16,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(
                       color: _emptyInputError != null
                           ? Colors.red
                           : Colors.black,
-                      width: 2.5),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: Colors.black, width: 3),
-                ),
-                disabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide:
-                      const BorderSide(color: Colors.black38, width: 2),
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: 10,
-              right: 10,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: _isLoading ? null : _toggleRecording,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: _isRecording
-                          ? RetroTheme.pink
-                          : RetroTheme.yellow,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black, width: 2.5),
-                      boxShadow: _isRecording
-                          ? []
-                          : const [
-                              BoxShadow(
-                                  color: Colors.black,
-                                  offset: Offset(2, 2),
-                                  blurRadius: 0)
-                            ],
+                      width: 2.5,
                     ),
-                    child: Icon(
-                        _isRecording ? LucideIcons.square : LucideIcons.mic,
-                        color: Colors.black,
-                        size: 20),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Colors.black, width: 3),
+                  ),
+                  disabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(
+                      color: Colors.black38,
+                      width: 2,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ]),
+              Positioned(
+                bottom: 10,
+                right: 10,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: _isLoading ? null : _toggleRecording,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _isRecording
+                            ? RetroTheme.pink
+                            : RetroTheme.yellow,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black, width: 2.5),
+                        boxShadow: _isRecording
+                            ? []
+                            : const [
+                                BoxShadow(
+                                  color: Colors.black,
+                                  offset: Offset(2, 2),
+                                  blurRadius: 0,
+                                ),
+                              ],
+                      ),
+                      child: Icon(
+                        _isRecording ? LucideIcons.square : LucideIcons.mic,
+                        color: Colors.black,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
 
           // Empty input error
           if (_emptyInputError != null)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: Row(children: [
-                const Icon(LucideIcons.alertCircle,
-                    size: 13, color: Colors.red),
-                const SizedBox(width: 6),
-                Text(_emptyInputError!,
+              child: Row(
+                children: [
+                  const Icon(
+                    LucideIcons.alertCircle,
+                    size: 13,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _emptyInputError!,
                     style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.red)),
-              ]),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.red,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
           const SizedBox(height: 16),
@@ -543,29 +630,39 @@ class _HomeScreenState extends State<HomeScreen>
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: RetroTheme.pink.withAlpha(180),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: Colors.red, width: 2),
                 ),
-                child: Row(children: [
-                  const Icon(LucideIcons.alertTriangle,
-                      size: 13, color: Colors.red),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: Text(_transcribeError!,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.red))),
-                ]),
+                child: Row(
+                  children: [
+                    const Icon(
+                      LucideIcons.alertTriangle,
+                      size: 13,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _transcribeError!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
         ],
       ),
     );
   }
-
 }

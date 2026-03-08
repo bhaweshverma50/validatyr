@@ -1,6 +1,9 @@
 PODS:
   - app_links (6.4.1):
     - Flutter
+  - CwlCatchException (2.2.1):
+    - CwlCatchExceptionSupport (~> 2.2.1)
+  - CwlCatchExceptionSupport (2.2.1)
   - Flutter (1.0.0)
   - flutter_local_notifications (0.0.1):
     - Flutter
@@ -14,6 +17,10 @@ PODS:
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
+  - speech_to_text (7.2.0):
+    - CwlCatchException
+    - Flutter
+    - FlutterMacOS
   - url_launcher_ios (0.0.1):
     - Flutter
 
@@ -25,7 +32,13 @@ DEPENDENCIES:
   - record_ios (from `.symlinks/plugins/record_ios/ios`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
+  - speech_to_text (from `.symlinks/plugins/speech_to_text/darwin`)
   - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
+
+SPEC REPOS:
+  trunk:
+    - CwlCatchException
+    - CwlCatchExceptionSupport
 
 EXTERNAL SOURCES:
   app_links:
@@ -42,17 +55,22 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/share_plus/ios"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
+  speech_to_text:
+    :path: ".symlinks/plugins/speech_to_text/darwin"
   url_launcher_ios:
     :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
   app_links: 3dbc685f76b1693c66a6d9dd1e9ab6f73d97dc0a
+  CwlCatchException: 7acc161b299a6de7f0a46a6ed741eae2c8b4d75a
+  CwlCatchExceptionSupport: 54ccab8d8c78907b57f99717fb19d4cc3bce02dc
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   flutter_local_notifications: 395056b3175ba4f08480a7c5de30cd36d69827e4
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   record_ios: 412daca2350b228e698fffcd08f1f94ceb1e3844
   share_plus: 50da8cb520a8f0f65671c6c6a99b3617ed10a58a
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
+  speech_to_text: 3b313d98516d3d0406cea424782ec25470c59d19
   url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
 
 PODFILE CHECKSUM: f8c2dcdfb50bb67645580d28a6bf814fca30bdec

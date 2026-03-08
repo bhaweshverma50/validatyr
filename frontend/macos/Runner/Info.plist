@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Validatyr uses speech recognition to transcribe your app idea from voice input.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Validatyr needs microphone access to record your app idea via voice.</string>
 </dict>
 </plist>
