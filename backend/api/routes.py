@@ -362,3 +362,21 @@ async def validate_idea_stream(request: ValidationRequest):
                 return
 
     return EventSourceResponse(event_generator())
+
+
+@router.get("/validation-jobs")
+async def list_validation_jobs():
+    """List all active (pending/running) validation jobs."""
+    from services.db import list_active_validation_jobs
+    jobs = list_active_validation_jobs()
+    return {"jobs": jobs}
+
+
+@router.get("/validation-jobs/{job_id}")
+async def get_validation_job_status(job_id: str):
+    """Get a single validation job's current status."""
+    from services.db import get_validation_job
+    job = get_validation_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
