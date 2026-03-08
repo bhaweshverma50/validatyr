@@ -42,7 +42,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   final List<String> _stepNames = [];
   final List<String> _stepMessages = [];
   final List<_StepState> _stepStates = [];
-  int _totalSteps = 5;
+  int _totalSteps = 6;
   String? _detectedCategoryLabel;
 
   StreamSubscription<SseEvent>? _sub;

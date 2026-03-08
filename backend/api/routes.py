@@ -147,6 +147,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
     so the pipeline completes and saves even if the client disconnects.
     """
     total_steps = 6
+    job_id = None
 
     def _put(event: str, data):
         q.put({"event": event, "data": _json.dumps(data) if isinstance(data, dict) else data})
@@ -330,7 +331,8 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
     except Exception as e:
         logger.error(f"Pipeline error: {e}", exc_info=True)
         _put("error", {"message": str(e)})
-        update_validation_job(job_id, {"status": "failed", "error": str(e)})
+        if job_id:
+            update_validation_job(job_id, {"status": "failed", "error": str(e)})
     finally:
         # Sentinel so the SSE generator knows the pipeline is done
         q.put(None)
