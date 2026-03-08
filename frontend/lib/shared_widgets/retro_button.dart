@@ -76,13 +76,17 @@ class _RetroButtonState extends State<RetroButton> {
                           widget.icon!,
                           const SizedBox(width: 10),
                         ],
-                        Text(
-                          widget.text.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.5,
-                            color: Colors.black,
+                        Flexible(
+                          child: Text(
+                            widget.text.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.0,
+                              color: Colors.black,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                         ),
                       ],

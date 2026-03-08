@@ -582,10 +582,14 @@ class _SmallBtnState extends State<_SmallBtn> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(widget.icon, size: 13, color: Colors.black),
-            const SizedBox(width: 5),
-            Text(
-              widget.label,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.black),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                widget.label,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.black),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
           ],
         ),

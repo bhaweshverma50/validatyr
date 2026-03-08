@@ -65,8 +65,9 @@ class _NotificationSettingsScreenState
           style: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w900,
-            fontSize: RetroTheme.fontXl,
+            fontSize: RetroTheme.fontLg,
           ),
+          overflow: TextOverflow.ellipsis,
         ),
       ),
       body: !_loaded
@@ -125,9 +126,20 @@ class _NotificationSettingsScreenState
                             ),
                           ),
                         ),
-                        onPressed: () {
-                          NotificationService.instance
+                        onPressed: () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final granted = await NotificationService.instance
                               .requestSystemPermissions();
+                          if (!mounted) return;
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                granted
+                                    ? 'Notifications enabled!'
+                                    : 'Permission not granted. Enable in system Settings > Apps > Validatyr > Notifications.',
+                              ),
+                            ),
+                          );
                         },
                         child: const Text(
                           'Enable',
