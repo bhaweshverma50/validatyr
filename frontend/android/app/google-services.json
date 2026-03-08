@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "872879151769",
+    "project_id": "validatyr-2026",
+    "storage_bucket": "validatyr-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:872879151769:android:4df072112e18420b523608",
+        "android_client_info": {
+          "package_name": "com.validatyr.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBd0IJAUFY63JPp1j8wDayUko4R8gscVBo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

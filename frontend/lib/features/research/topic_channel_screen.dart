@@ -59,8 +59,9 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     return Scaffold(
-      backgroundColor: RetroTheme.background,
+      backgroundColor: colors.background,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
@@ -76,14 +77,14 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
             if (_keywords.isNotEmpty)
               Text(
                 _keywords.join(', '),
-                style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54, fontWeight: FontWeight.normal),
+                style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textMuted, fontWeight: FontWeight.normal),
               ),
           ],
         ),
         actions: [
           IconButton(
             icon: _isRefreshing
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: colors.text))
                 : const Icon(LucideIcons.refreshCw),
             onPressed: _isRefreshing ? null : _triggerResearch,
           ),
@@ -94,8 +95,9 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
   }
 
   Widget _buildBody() {
+    final colors = RetroColors.of(context);
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2.5));
+      return Center(child: CircularProgressIndicator(color: colors.text, strokeWidth: 2.5));
     }
     if (_errorMessage != null) {
       return Center(
@@ -106,7 +108,7 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(_errorMessage!),
+                Text(_errorMessage!, style: const TextStyle(color: Colors.black)),
                 const SizedBox(height: RetroTheme.spacingMd),
                 RetroButton(text: 'RETRY', onPressed: _loadReports, color: RetroTheme.yellow),
               ],
@@ -120,9 +122,9 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(LucideIcons.fileSearch, size: 48, color: Colors.black26),
+            Icon(LucideIcons.fileSearch, size: 48, color: colors.iconMuted),
             const SizedBox(height: RetroTheme.spacingMd),
-            const Text('No reports yet', style: TextStyle(fontSize: RetroTheme.fontLg, color: Colors.black45)),
+            Text('No reports yet', style: TextStyle(fontSize: RetroTheme.fontLg, color: colors.textSubtle)),
             const SizedBox(height: RetroTheme.spacingMd),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 240),
@@ -140,7 +142,7 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
     }
 
     return RefreshIndicator(
-      color: Colors.black,
+      color: colors.text,
       onRefresh: _loadReports,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(
@@ -155,6 +157,7 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
   }
 
   Widget _buildReportCard(Map<String, dynamic> report) {
+    final colors = RetroColors.of(context);
     final ideas = List.from(report['ideas'] ?? []);
     final summary = report['executive_summary'] as String? ?? '';
     final date = formatDate(report['generated_at']?.toString());
@@ -174,7 +177,7 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
           children: [
             Row(
               children: [
-                const Icon(LucideIcons.barChart3, size: 16, color: Colors.black54),
+                Icon(LucideIcons.barChart3, size: 16, color: colors.iconMuted),
                 const SizedBox(width: RetroTheme.spacingSm),
                 const Expanded(
                   child: Text('Research Report', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700, fontSize: 15)),
@@ -182,14 +185,14 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(date, style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54)),
-                    Text(time, style: const TextStyle(fontSize: RetroTheme.fontXs, color: Colors.black38)),
+                    Text(date, style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textMuted)),
+                    Text(time, style: TextStyle(fontSize: RetroTheme.fontXs, color: colors.textSubtle)),
                   ],
                 ),
               ],
             ),
             const SizedBox(height: RetroTheme.spacingXs),
-            Text('${ideas.length} ideas found', style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54)),
+            Text('${ideas.length} ideas found', style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textMuted)),
             if (summary.isNotEmpty) ...[
               const SizedBox(height: RetroTheme.spacingSm),
               Text(
@@ -198,9 +201,9 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
               ),
             ],
             const SizedBox(height: RetroTheme.spacingSm),
-            const Align(
+            Align(
               alignment: Alignment.centerRight,
-              child: Icon(LucideIcons.chevronRight, size: 16, color: Colors.black38),
+              child: Icon(LucideIcons.chevronRight, size: 16, color: colors.iconMuted),
             ),
           ],
         ),

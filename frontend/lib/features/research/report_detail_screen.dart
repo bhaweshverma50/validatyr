@@ -51,6 +51,7 @@ class ReportDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = RetroColors.of(context);
     final summary = report['executive_summary'] as String? ?? '';
     final overview = report['market_overview'] as String? ?? '';
     final ideas = List<Map<String, dynamic>>.from(
@@ -60,7 +61,7 @@ class ReportDetailScreen extends StatelessWidget {
     final dateTime = formatDateTime(report['generated_at']?.toString());
 
     return Scaffold(
-      backgroundColor: RetroTheme.background,
+      backgroundColor: colors.background,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
@@ -70,7 +71,7 @@ class ReportDetailScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('RESEARCH REPORT', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: RetroTheme.fontXl)),
-            Text(dateTime, style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54, fontWeight: FontWeight.normal)),
+            Text(dateTime, style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textMuted, fontWeight: FontWeight.normal)),
           ],
         ),
       ),
@@ -88,7 +89,7 @@ class ReportDetailScreen extends StatelessWidget {
               RetroCard(
                 backgroundColor: const Color(0xFFFEF9C3),
                 padding: const EdgeInsets.all(RetroTheme.spacingMd),
-                child: Text(summary, style: const TextStyle(fontSize: RetroTheme.fontMd, height: 1.5)),
+                child: Text(summary, style: const TextStyle(fontSize: RetroTheme.fontMd, height: 1.5, color: Colors.black)),
               ),
               const SizedBox(height: RetroTheme.spacingLg),
             ],
@@ -115,7 +116,7 @@ class ReportDetailScreen extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: RetroCard(
-                  backgroundColor: Colors.white,
+                  backgroundColor: colors.surface,
                   padding: const EdgeInsets.all(RetroTheme.spacingMd),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,9 +129,9 @@ class ReportDetailScreen extends StatelessWidget {
                         children: sources.map((s) => Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: RetroTheme.background,
+                            color: colors.background,
                             borderRadius: BorderRadius.circular(RetroTheme.radiusSm),
-                            border: Border.all(color: Colors.black, width: RetroTheme.borderWidthMedium),
+                            border: Border.all(color: colors.border, width: RetroTheme.borderWidthMedium),
                           ),
                           child: Text(s, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                         )).toList(),
@@ -148,6 +149,7 @@ class ReportDetailScreen extends StatelessWidget {
   }
 
   Widget _buildIdeaCard(BuildContext context, int index, Map<String, dynamic> idea) {
+    final colors = RetroColors.of(context);
     final name = idea['name'] as String? ?? 'Untitled';
     final oneLiner = idea['one_liner'] as String? ?? '';
     final problem = idea['problem_statement'] as String? ?? '';
@@ -174,7 +176,7 @@ class ReportDetailScreen extends StatelessWidget {
                       style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w800, fontSize: RetroTheme.fontLg),
                     ),
                     if (oneLiner.isNotEmpty)
-                      Text(oneLiner, style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54)),
+                      Text(oneLiner, style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textMuted)),
                   ],
                 ),
               ),
@@ -185,10 +187,10 @@ class ReportDetailScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: RetroTheme.scoreColor(score),
                   borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
-                  border: Border.all(color: RetroTheme.border, width: RetroTheme.borderWidthMedium),
+                  border: Border.all(color: colors.border, width: RetroTheme.borderWidthMedium),
                 ),
                 child: Center(
-                  child: Text('${score.round()}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                  child: Text('${score.round()}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Colors.black)),
                 ),
               ),
             ],
@@ -199,13 +201,13 @@ class ReportDetailScreen extends StatelessWidget {
           if (trendType.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: RetroTheme.badgeDecoration(_trendColor(trendType)),
+              decoration: RetroTheme.badgeDecoration(_trendColor(trendType), borderColor: colors.border),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(_trendIcon(trendType), size: 12),
+                  Icon(_trendIcon(trendType), size: 12, color: Colors.black),
                   const SizedBox(width: 4),
-                  Text(_trendLabel(trendType), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  Text(_trendLabel(trendType), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black)),
                 ],
               ),
             ),
@@ -249,9 +251,9 @@ class ReportDetailScreen extends StatelessWidget {
             const SizedBox(height: RetroTheme.spacingSm),
             Row(
               children: [
-                const Icon(LucideIcons.dollarSign, size: 14, color: Colors.black54),
+                Icon(LucideIcons.dollarSign, size: 14, color: colors.iconMuted),
                 const SizedBox(width: 4),
-                Expanded(child: Text(monetization, style: const TextStyle(fontSize: RetroTheme.fontSm, color: Colors.black54))),
+                Expanded(child: Text(monetization, style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textMuted))),
               ],
             ),
           ],

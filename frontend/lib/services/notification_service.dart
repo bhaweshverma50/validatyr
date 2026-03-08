@@ -1,8 +1,13 @@
 import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../features/notifications/notification_center_screen.dart';
+import 'api_service.dart';
 
 class NotificationService {
   NotificationService._();
@@ -16,6 +21,8 @@ class NotificationService {
   FlutterLocalNotificationsPlugin? _localNotifications;
   RealtimeChannel? _channel;
   SharedPreferences? _prefs;
+  GlobalKey<NavigatorState>? _navigatorKey;
+  bool _didHandleInitialMessage = false;
 
   // Preference keys
   static const _keyValidationComplete = 'notif_validation_complete';
@@ -23,24 +30,118 @@ class NotificationService {
   static const _keyHighScoreAlert = 'notif_high_score_alert';
   static const _keyScheduleReminder = 'notif_schedule_reminder';
   static const _keyScoreThreshold = 'notif_score_threshold';
+  static const _notificationCenterPayload = 'notification_center';
 
-  Future<void> init() async {
+  Future<void> init(GlobalKey<NavigatorState> navigatorKey) async {
+    _navigatorKey = navigatorKey;
     _prefs = await SharedPreferences.getInstance();
 
-    // Init local notifications
-    _localNotifications = FlutterLocalNotificationsPlugin();
-    const initSettings = InitializationSettings(
-      iOS: DarwinInitializationSettings(),
-      macOS: DarwinInitializationSettings(),
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-    );
-    await _localNotifications!.initialize(initSettings);
-
-    // Load initial unread count
+    // Load initial unread count and subscribe to Realtime FIRST
+    // (these only depend on Supabase which is already initialized)
     await refreshUnreadCount();
-
-    // Subscribe to Supabase Realtime
     _subscribeToRealtime();
+
+    // Init local notifications (may fail on some platforms)
+    try {
+      _localNotifications = FlutterLocalNotificationsPlugin();
+      final initSettings = InitializationSettings(
+        iOS: DarwinInitializationSettings(),
+        macOS: DarwinInitializationSettings(),
+        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      );
+      await _localNotifications!.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: (response) {
+          if (response.payload == _notificationCenterPayload) {
+            _openNotificationCenter();
+          }
+        },
+      );
+      await _createAndroidChannel();
+      await requestSystemPermissions();
+    } catch (e) {
+      debugPrint('NotificationService: local notifications init failed: $e');
+    }
+
+    // Firebase Messaging (may fail if not configured)
+    try {
+      await _setupFirebaseMessaging();
+    } catch (e) {
+      debugPrint('NotificationService: Firebase messaging setup failed: $e');
+    }
+  }
+
+  Future<void> requestSystemPermissions() async {
+    final plugin = _localNotifications;
+    if (plugin == null) return;
+
+    try {
+      final messaging = FirebaseMessaging.instance;
+
+      // Check current status first
+      final currentSettings = await messaging.getNotificationSettings();
+      final alreadyDenied =
+          currentSettings.authorizationStatus == AuthorizationStatus.denied;
+
+      if (alreadyDenied) {
+        // iOS won't re-prompt after denial — open system Settings instead
+        if (defaultTargetPlatform == TargetPlatform.iOS) {
+          await launchUrl(Uri.parse('app-settings:'));
+        } else {
+          await launchUrl(Uri.parse('package:com.validatyr.frontend'));
+        }
+        return;
+      }
+
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+
+      // Also request for local notifications
+      await plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+      await plugin
+          .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+      await plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestNotificationsPermission();
+
+      // If permission granted, ensure we have an FCM token registered
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        await _ensureFcmTokenRegistered();
+      }
+    } catch (e) {
+      debugPrint('NotificationService: permission request failed: $e');
+    }
+  }
+
+  /// Attempt to get and register the FCM token (called after permission grant).
+  Future<void> _ensureFcmTokenRegistered() async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+      if (_platformLabel == 'ios' || _platformLabel == 'macos') {
+        final apnsToken = await messaging.getAPNSToken();
+        if (apnsToken == null) return;
+      }
+      final token = await messaging.getToken();
+      if (token != null) {
+        await _registerPushToken(token);
+      }
+    } catch (e) {
+      debugPrint('NotificationService: FCM token registration after permission failed: $e');
+    }
   }
 
   void _subscribeToRealtime() {
@@ -66,15 +167,97 @@ class NotificationService {
   void _onNewNotification(Map<String, dynamic> row) {
     _unreadCount++;
     _unreadController.add(_unreadCount);
+  }
 
-    final type = row['type'] as String? ?? '';
-    final title = row['title'] as String? ?? '';
-    final body = row['body'] as String? ?? '';
-    final metadata = row['metadata'] as Map<String, dynamic>? ?? {};
+  Future<void> _setupFirebaseMessaging() async {
+    final messaging = FirebaseMessaging.instance;
 
-    if (!_isTypeEnabled(type, metadata)) return;
+    try {
+      await messaging.setAutoInitEnabled(true);
+    } catch (e) {
+      debugPrint('NotificationService: auto init failed: $e');
+    }
 
-    _showLocalNotification(title, body);
+    final initialMessage = await messaging.getInitialMessage();
+    if (initialMessage != null && !_didHandleInitialMessage) {
+      _didHandleInitialMessage = true;
+      unawaited(refreshState(reconnectRealtime: true));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openNotificationCenter();
+      });
+    }
+
+    FirebaseMessaging.onMessage.listen((message) {
+      unawaited(refreshState(reconnectRealtime: false));
+
+      final type = message.data['type']?.toString() ?? '';
+      final metadata = Map<String, dynamic>.from(message.data);
+      if (!_isTypeEnabled(type, metadata)) {
+        return;
+      }
+
+      final notification = message.notification;
+      if (notification != null) {
+        _showLocalNotification(
+          notification.title ?? 'Validatyr',
+          notification.body ?? 'You have a new notification.',
+        );
+      }
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((_) {
+      unawaited(refreshState(reconnectRealtime: true));
+      _openNotificationCenter();
+    });
+
+    try {
+      if (_platformLabel == 'ios' || _platformLabel == 'macos') {
+        // APNs token may not be ready immediately; retry a few times.
+        String? apnsToken;
+        for (int i = 0; i < 5; i++) {
+          apnsToken = await messaging.getAPNSToken();
+          if (apnsToken != null) break;
+          await Future.delayed(const Duration(seconds: 2));
+        }
+        if (apnsToken == null) {
+          debugPrint(
+            'NotificationService: APNs token unavailable after retries; '
+            'will register on next token refresh.',
+          );
+        } else {
+          final token = await messaging.getToken();
+          if (token != null) {
+            await _registerPushToken(token);
+          }
+        }
+      } else {
+        final token = await messaging.getToken();
+        if (token != null) {
+          await _registerPushToken(token);
+        }
+      }
+    } catch (e) {
+      debugPrint('NotificationService: initial token fetch failed: $e');
+    }
+
+    messaging.onTokenRefresh
+        .listen((token) async {
+          await _registerPushToken(token);
+        })
+        .onError((error) {
+          debugPrint('NotificationService: token refresh failed: $error');
+        });
+  }
+
+  Future<void> _registerPushToken(String token) async {
+    try {
+      await ApiService.registerPushToken(
+        token: token,
+        platform: _platformLabel,
+      );
+    } catch (e) {
+      debugPrint('NotificationService: push token registration failed: $e');
+    }
   }
 
   bool _isTypeEnabled(String type, Map<String, dynamic> metadata) {
@@ -114,6 +297,36 @@ class NotificationService {
       title,
       body,
       details,
+      payload: _notificationCenterPayload,
+    );
+  }
+
+  Future<void> _createAndroidChannel() async {
+    const channel = AndroidNotificationChannel(
+      'validatyr_notifications',
+      'Validatyr',
+      description: 'Validation and research notifications',
+      importance: Importance.high,
+    );
+
+    try {
+      await _localNotifications
+          ?.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.createNotificationChannel(channel);
+    } catch (e) {
+      debugPrint('NotificationService: channel creation failed: $e');
+    }
+  }
+
+  void _openNotificationCenter() {
+    final navigator = _navigatorKey?.currentState;
+    final context = navigator?.context;
+    if (navigator == null || context == null) return;
+
+    navigator.push(
+      MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
     );
   }
 
@@ -128,6 +341,28 @@ class NotificationService {
       _unreadController.add(_unreadCount);
     } catch (e) {
       debugPrint('NotificationService: refreshUnreadCount failed: $e');
+    }
+  }
+
+  Future<void> refreshState({bool reconnectRealtime = false}) async {
+    await refreshUnreadCount();
+    if (reconnectRealtime) {
+      await _channel?.unsubscribe();
+      _channel = null;
+      _subscribeToRealtime();
+    }
+  }
+
+  String get _platformLabel {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.iOS:
+        return 'ios';
+      case TargetPlatform.macOS:
+        return 'macos';
+      default:
+        return defaultTargetPlatform.name;
     }
   }
 
@@ -160,11 +395,25 @@ class NotificationService {
   Future<void> markAllRead() async {
     try {
       final client = Supabase.instance.client;
-      await client.from('notifications').update({'is_read': true}).eq('is_read', false);
+      await client
+          .from('notifications')
+          .update({'is_read': true})
+          .eq('is_read', false);
       _unreadCount = 0;
       _unreadController.add(_unreadCount);
     } catch (e) {
       debugPrint('NotificationService: markAllRead failed: $e');
+    }
+  }
+
+  Future<void> clearAll() async {
+    try {
+      final client = Supabase.instance.client;
+      await client.from('notifications').delete().neq('id', 0);
+      _unreadCount = 0;
+      _unreadController.add(_unreadCount);
+    } catch (e) {
+      debugPrint('NotificationService: clearAll failed: $e');
     }
   }
 

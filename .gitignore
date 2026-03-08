@@ -16,6 +16,7 @@ backend/**/__pycache__/
 *.pyc
 *.pyo
 backend/.env
+backend/firebase-service-account.json
 
 # === Flutter / Frontend ===
 # (frontend/.gitignore handles most Flutter specifics)

@@ -50,11 +50,11 @@ class _RetroButtonState extends State<RetroButton> {
           ),
           decoration: BoxDecoration(
             color: _isHovered && !_isPressed
-                ? Color.lerp(widget.color, Colors.white, 0.15)!
+                ? Color.lerp(widget.color, RetroColors.of(context).surface, 0.15)!
                 : widget.color,
             borderRadius: BorderRadius.circular(8.0),
-            border: RetroTheme.thickerBorder,
-            boxShadow: _isPressed ? [] : RetroTheme.sharpShadow,
+            border: RetroTheme.borderOf(context),
+            boxShadow: _isPressed ? [] : RetroTheme.shadowOf(context),
           ),
           padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
           child: Center(
@@ -63,27 +63,30 @@ class _RetroButtonState extends State<RetroButton> {
                     height: 24,
                     width: 24,
                     child: CircularProgressIndicator(
-                      color: Colors.black,
+                      color: Colors.black, // always on accent bg
                       strokeWidth: 3.0,
                     ),
                   )
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (widget.icon != null) ...[
-                        widget.icon!,
-                        const SizedBox(width: 10),
-                      ],
-                      Text(
-                        widget.text.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                          color: Colors.black,
+                : IconTheme(
+                    data: const IconThemeData(color: Colors.black),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.icon != null) ...[
+                          widget.icon!,
+                          const SizedBox(width: 10),
+                        ],
+                        Text(
+                          widget.text.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
+                            color: Colors.black,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
           ),
         ),

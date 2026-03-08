@@ -1,7 +1,9 @@
 import os
 import logging
+from datetime import datetime, timezone
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from services.push_service import send_push_notification
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -61,18 +63,30 @@ def save_validation_result(idea: str, result: dict) -> dict:
 def send_notification(type: str, title: str, body: str, metadata: dict | None = None):
     """Insert a notification row into Supabase (triggers Realtime for frontend)."""
     supabase = get_supabase()
+    notification_metadata = metadata or {}
     if not supabase:
         logger.info(f"[MOCKED] Notification: {type} — {title}")
+        send_push_notification(
+            title=title,
+            body=body,
+            data={"type": type, "route": "notification_center", **notification_metadata},
+        )
         return
     try:
         supabase.table("notifications").insert({
             "type": type,
             "title": title,
             "body": body,
-            "metadata": metadata or {},
+            "metadata": notification_metadata,
         }).execute()
     except Exception as e:
         logger.warning(f"Failed to send notification: {e}")
+
+    send_push_notification(
+        title=title,
+        body=body,
+        data={"type": type, "route": "notification_center", **notification_metadata},
+    )
 
 
 def create_validation_job(job_id: str, idea: str, category: str | None) -> None:
@@ -135,4 +149,46 @@ def list_active_validation_jobs() -> list[dict]:
         return resp.data or []
     except Exception as e:
         logger.warning(f"Failed to list active validation jobs: {e}")
+        return []
+
+
+def upsert_push_token(token: str, platform: str) -> None:
+    supabase = get_supabase()
+    if not supabase:
+        logger.info(f"[MOCKED] upsert_push_token {platform}")
+        return
+    try:
+        supabase.table("push_tokens").upsert({
+            "token": token,
+            "platform": platform,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }, on_conflict="token").execute()
+    except Exception as e:
+        logger.warning(f"Failed to upsert push token: {e}")
+
+
+def delete_push_token(token: str) -> None:
+    supabase = get_supabase()
+    if not supabase:
+        logger.info("[MOCKED] delete_push_token")
+        return
+    try:
+        supabase.table("push_tokens").delete().eq("token", token).execute()
+    except Exception as e:
+        logger.warning(f"Failed to delete push token: {e}")
+
+
+def list_push_tokens(platforms: list[str] | None = None) -> list[dict]:
+    supabase = get_supabase()
+    if not supabase:
+        logger.info("[MOCKED] list_push_tokens")
+        return []
+    try:
+        query = supabase.table("push_tokens").select("*")
+        if platforms:
+            query = query.in_("platform", platforms)
+        resp = query.execute()
+        return resp.data or []
+    except Exception as e:
+        logger.warning(f"Failed to list push tokens: {e}")
         return []
