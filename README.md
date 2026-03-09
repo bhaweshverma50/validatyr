@@ -36,6 +36,7 @@ Describe your app idea. We scrape **real competitor reviews** from the Play Stor
 - **Research topics** — create topics by domain (Apps, SaaS, Hardware, FinTech, General) with custom keywords and focus areas
 - **3-agent research pipeline** — Trend Scout, Market Analyst, and Idea Generator produce structured reports
 - **Scheduled research** — daily or weekly auto-runs with configurable day and time picker
+- **Per-topic timezone** — auto-detects device timezone, schedules run in the topic's local time
 - **Topic channels** — each topic has a feed of generated reports, newest first
 - **Research reports** — executive summary, market overview, scored ideas with trend evidence, MVP features, and monetization hints
 - **Deep Validate** — one tap to run any research idea through the full validation pipeline
@@ -57,9 +58,15 @@ Describe your app idea. We scrape **real competitor reviews** from the Play Stor
 ### Design & UX
 
 - **Retro neo-brutalist UI** — bold 3px borders, sharp offset shadows, pastel color palette (pink, mint, lavender, yellow, blue)
-- **Dark mode** — full light/dark/system theme support with `ThemeExtension<RetroColors>`
+- **Dark mode** — full light/dark/system theme support with rich dark palette (deep inky backgrounds, muted slate-purple borders)
 - **Design token system** — centralized spacing, typography, color, border, radius, and shadow tokens
-- **Shared components** — `RetroCard` and `RetroButton` with animated press states and sharp shadows
+- **Shared components** — `RetroCard`, `RetroButton` (with size variants), `RetroSkeletonCard` shimmer loaders
+- **Score-colored results** — Opportunity Score card uses dynamic accent color (green/yellow/orange/pink) based on score
+- **Competitor tag legend** — info icon with bottom sheet explaining platform (IOS/ANDROID/WEB) and source (PH/YC) tags
+- **Section jump bar** — horizontal chip bar for quick navigation across results sections
+- **Skeleton loading** — shimmer placeholders instead of spinners for all list loading states
+- **Haptic feedback** — light impact on tab switches and button presses
+- **Accessibility** — `Semantics` labels on score gauge, buttons, and navigation tabs
 - **Bottom navigation** — 5-tab shell (Home, Research, History, Alerts, Settings) with retro active state indicators
 - **Responsive** — works on iOS, Android, macOS, and web
 
@@ -203,7 +210,7 @@ Topic (domain + keywords + focus areas)
 ### 1. Clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/validatyr.git
+git clone https://github.com/bhaweshverma50/validatyr.git
 cd validatyr
 ```
 
@@ -335,6 +342,7 @@ validatyr/
 │   │   ├── shared_widgets/
 │   │   │   ├── retro_card.dart
 │   │   │   ├── retro_button.dart
+│   │   │   ├── retro_skeleton.dart        # Shimmer skeleton loaders
 │   │   │   └── notification_bell.dart
 │   │   └── services/
 │   │       ├── api_service.dart
