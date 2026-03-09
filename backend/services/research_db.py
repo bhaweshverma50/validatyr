@@ -28,6 +28,7 @@ def save_research_topic(topic: dict) -> dict:
         "keywords": topic.get("keywords", []),
         "interests": topic.get("interests", []),
         "schedule_cron": topic.get("schedule_cron"),
+        "timezone": topic.get("timezone", "Asia/Kolkata"),
         "is_active": topic.get("is_active", True),
     }
     if not supabase:
