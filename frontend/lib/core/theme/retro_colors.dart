@@ -39,16 +39,16 @@ class RetroColors extends ThemeExtension<RetroColors> {
   );
 
   static const dark = RetroColors(
-    background: Color(0xFF1A1A2E),
-    surface: Color(0xFF16213E),
-    border: Color(0xFF4A5568), // muted slate — visible but not harsh on dark
-    borderSubtle: Color(0xFF2D3748),
-    text: Color(0xFFF8FAFC),
-    textMuted: Color(0xFF94A3B8),
-    textSubtle: Color(0xFF64748B),
-    shadowColor: Color(0xFF0D0D1A), // near-black offset shadow for depth
-    iconDefault: Color(0xFFF8FAFC),
-    iconMuted: Color(0xFF94A3B8),
+    background: Color(0xFF0F0F1A),   // deep inky black with violet tint
+    surface: Color(0xFF1A1A2E),      // lifted card surface — richer navy
+    border: Color(0xFF3B3B5C),       // muted slate-purple — visible but calm
+    borderSubtle: Color(0xFF2A2A42), // soft purple-gray divider
+    text: Color(0xFFF1F5F9),         // crisp near-white
+    textMuted: Color(0xFFA5B4CF),    // cool blue-gray, warmer than before
+    textSubtle: Color(0xFF6B7A94),   // dimmed but still readable
+    shadowColor: Color(0xFF000000),  // true black shadow for bold retro offset
+    iconDefault: Color(0xFFE2E8F0),  // bright icons
+    iconMuted: Color(0xFF7C8DB5),    // visible muted icons, not washed out
   );
 
   static RetroColors of(BuildContext context) {

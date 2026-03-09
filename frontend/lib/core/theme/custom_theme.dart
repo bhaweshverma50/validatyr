@@ -87,6 +87,10 @@ class RetroTheme {
     color: Colors.black, // always black — badges sit on accent backgrounds
   );
 
+  // ── On-Accent Colors (for text/icons on pastel accent backgrounds) ──
+  static const Color onAccent = Colors.black;
+  static const Color onAccentMuted = Color(0xFF475569);
+
   // ── Score Color ───────────────────────────────────────────────
   static Color scoreColor(double score) {
     if (score >= 75) return mint;

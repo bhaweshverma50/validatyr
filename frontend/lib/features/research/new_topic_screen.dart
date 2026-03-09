@@ -264,7 +264,7 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
                     color: colors.surface,
                     borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
                     border: Border.all(color: colors.border, width: RetroTheme.borderWidthMedium),
-                    boxShadow: RetroTheme.sharpShadowSm,
+                    boxShadow: RetroTheme.shadowSmOf(context),
                   ),
                   child: Row(
                     children: [

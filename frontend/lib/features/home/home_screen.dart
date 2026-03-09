@@ -288,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen>
               return GestureDetector(
                 onTap: () {
                   setState(() {
-                    _ideaController.text = prompt.substring(2).trim();
+                    _ideaController.text = prompt.replaceFirst(RegExp(r'^[^\w]+'), '').trim();
                     _emptyInputError = null;
                   });
                 },
@@ -374,8 +374,6 @@ class _HomeScreenState extends State<HomeScreen>
                     _buildSamplePrompts(),
 
                     const SizedBox(height: 32),
-
-                    const SizedBox(height: 24),
                   ],
                 ),
               ),
@@ -557,33 +555,37 @@ class _HomeScreenState extends State<HomeScreen>
               Positioned(
                 bottom: 10,
                 right: 10,
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: _isLoading ? null : _toggleRecording,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: _isRecording
-                            ? RetroTheme.pink
-                            : RetroTheme.yellow,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: colors.border, width: 2.5),
-                        boxShadow: _isRecording
-                            ? []
-                            : [
-                                BoxShadow(
-                                  color: colors.border,
-                                  offset: const Offset(2, 2),
-                                  blurRadius: 0,
-                                ),
-                              ],
-                      ),
-                      child: const Icon(
-                        LucideIcons.mic,
-                        color: Colors.black,
-                        size: 20,
+                child: Semantics(
+                  button: true,
+                  label: _isRecording ? 'Stop recording' : 'Record voice idea',
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: _isLoading ? null : _toggleRecording,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: _isRecording
+                              ? RetroTheme.pink
+                              : RetroTheme.yellow,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: colors.border, width: 2.5),
+                          boxShadow: _isRecording
+                              ? []
+                              : [
+                                  BoxShadow(
+                                    color: colors.border,
+                                    offset: const Offset(2, 2),
+                                    blurRadius: 0,
+                                  ),
+                                ],
+                        ),
+                        child: const Icon(
+                          LucideIcons.mic,
+                          color: Colors.black,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),

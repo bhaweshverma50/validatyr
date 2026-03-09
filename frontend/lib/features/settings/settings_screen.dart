@@ -86,46 +86,57 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: RetroTheme.spacingSm),
-          RetroCard(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: RetroTheme.lavender,
-                    borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
-                    border: Border.all(color: colors.border, width: 2),
+          GestureDetector(
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Sign in coming soon!')),
+              );
+            },
+            child: RetroCard(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: RetroTheme.lavender,
+                      borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
+                      border: Border.all(color: colors.border, width: 2),
+                    ),
+                    child: const Icon(LucideIcons.user, size: 22, color: Colors.black),
                   ),
-                  child: const Icon(LucideIcons.user, size: 22, color: Colors.black),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Sign In',
-                        style: TextStyle(
-                          fontSize: RetroTheme.fontLg,
-                          fontWeight: FontWeight.w800,
-                          color: colors.text,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sign In',
+                          style: TextStyle(
+                            fontSize: RetroTheme.fontLg,
+                            fontWeight: FontWeight.w800,
+                            color: colors.text,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Sync settings across devices',
-                        style: TextStyle(
-                          fontSize: RetroTheme.fontSm,
-                          color: colors.textMuted,
+                        const SizedBox(height: 2),
+                        Text(
+                          'Sync settings across devices',
+                          style: TextStyle(
+                            fontSize: RetroTheme.fontSm,
+                            color: colors.textMuted,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Icon(LucideIcons.chevronRight, size: 18, color: colors.iconMuted),
-              ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: RetroTheme.badgeDecoration(RetroTheme.yellow),
+                    child: const Text('SOON', style: RetroTheme.badgeStyle),
+                  ),
+                ],
+              ),
             ),
           ),
 

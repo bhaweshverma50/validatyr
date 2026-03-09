@@ -3,6 +3,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
+import '../../shared_widgets/retro_skeleton.dart';
 import '../../services/research_api_service.dart';
 import 'new_topic_screen.dart';
 import 'topic_channel_screen.dart';
@@ -43,16 +44,16 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
   }
 
   Future<void> _loadJobStatuses() async {
-    for (final topic in _topics) {
+    await Future.wait(_topics.map((topic) async {
       final topicId = topic['id']?.toString() ?? '';
-      if (topicId.isEmpty) continue;
+      if (topicId.isEmpty) return;
       try {
         final job = await ResearchApiService.getLatestJob(topicId);
         if (mounted && job != null) {
           setState(() => _topicJobs[topicId] = job);
         }
       } catch (_) {}
-    }
+    }));
   }
 
   IconData _domainIcon(String domain) {
@@ -192,7 +193,7 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
   Widget _buildBody() {
     final colors = RetroColors.of(context);
     if (_isLoading) {
-      return Center(child: CircularProgressIndicator(color: colors.text, strokeWidth: 2.5));
+      return const RetroSkeletonList(itemCount: 3, lineCount: 2, showAvatar: true);
     }
     if (_errorMessage != null) {
       return Center(
@@ -440,8 +441,6 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
     final colors = RetroColors.of(context);
     return PopupMenuButton<String>(
       icon: Icon(LucideIcons.moreVertical, size: 18, color: colors.iconMuted),
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: colors.border, width: 2),

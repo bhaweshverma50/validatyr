@@ -78,10 +78,46 @@ class ResultsScreen extends StatefulWidget {
 }
 
 class _ResultsScreenState extends State<ResultsScreen> {
+  final ScrollController _scrollCtrl = ScrollController();
+  bool _showBackToTop = false;
+
+  // Section keys for scroll-to navigation
+  final _sectionKeys = <String, GlobalKey>{};
+
+  GlobalKey _keyFor(String section) =>
+      _sectionKeys.putIfAbsent(section, () => GlobalKey());
+
+  void _scrollToSection(String section) {
+    final key = _sectionKeys[section];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     if (widget.saveToHistory) _save();
+    _scrollCtrl.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final show = _scrollCtrl.offset > 400;
+    if (show != _showBackToTop) {
+      setState(() => _showBackToTop = show);
+    }
   }
 
   Future<void> _save() async {
@@ -123,36 +159,96 @@ class _ResultsScreenState extends State<ResultsScreen> {
   Widget _buildScoreGauge(double score) {
     final colors = RetroColors.of(context);
     final color = RetroTheme.scoreColor(score);
-    return SizedBox(
-      height: 180,
-      width: 180,
-      child: Stack(
+    return Semantics(
+      value: '${score.toInt()} out of 100',
+      label: 'Opportunity score',
+      child: SizedBox(
+        height: 180,
+        width: 180,
+        child: Stack(
+          children: [
+            CustomPaint(
+              size: const Size(180, 180),
+              painter: _ScoreGaugePainter(score: score, scoreColor: color, borderColor: colors.border, trackColor: colors.surface),
+            ),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ExcludeSemantics(
+                    child: Text(
+                      '${score.toInt()}',
+                      style: TextStyle(
+                        fontSize: 44,
+                        fontWeight: FontWeight.w900,
+                        color: colors.text,
+                        height: 1.0,
+                      ),
+                    ),
+                  ),
+                  ExcludeSemantics(
+                    child: Text(
+                      '/100',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScoreCard(double score, String targetOs) {
+    final colors = RetroColors.of(context);
+    final accentColor = RetroTheme.scoreColor(score);
+    return RetroCard(
+      backgroundColor: colors.surface,
+      padding: EdgeInsets.zero,
+      child: Column(
         children: [
-          CustomPaint(
-            size: const Size(180, 180),
-            painter: _ScoreGaugePainter(score: score, scoreColor: color, borderColor: colors.border, trackColor: colors.surface),
+          // ── Colored header strip ──
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: accentColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+            ),
+            child: const Text(
+              'OPPORTUNITY SCORE',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: RetroTheme.onAccent),
+              textAlign: TextAlign.center,
+            ),
           ),
-          Center(
+          // ── Gauge body ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  '${score.toInt()}',
-                  style: const TextStyle(
-                    fontSize: 44,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.black, // on yellow card
-                    height: 1.0,
+                _buildScoreGauge(score),
+                if (targetOs.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: colors.background,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: colors.borderSubtle, width: 1.5),
+                    ),
+                    child: Text(
+                      'Target: $targetOs',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: colors.text),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                ),
-                const Text(
-                  '/100',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF475569), // muted black on yellow
-                  ),
-                ),
+                ],
               ],
             ),
           ),
@@ -245,7 +341,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 22, color: Colors.black),
+              Icon(icon, size: 22, color: RetroTheme.onAccent),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -254,7 +350,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.0,
-                    color: Colors.black,
+                    color: RetroTheme.onAccent,
                   ),
                 ),
               ),
@@ -289,7 +385,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     Expanded(
                       child: Text(
                         entry.value.toString(),
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.5, color: Colors.black),
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.5, color: RetroTheme.onAccent),
                       ),
                     ),
                   ],
@@ -310,12 +406,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 22, color: Colors.black),
+              Icon(icon, size: 22, color: RetroTheme.onAccent),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   title.toUpperCase(),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.black),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: RetroTheme.onAccent),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -324,7 +420,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
           const SizedBox(height: 12),
           Text(
             content,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.6, color: Colors.black),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, height: 1.6, color: RetroTheme.onAccent),
           ),
         ],
       ),
@@ -363,9 +459,9 @@ class _ResultsScreenState extends State<ResultsScreen> {
       backgroundColor: color,
       padding: const EdgeInsets.all(14),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.black)),
+        Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: RetroTheme.onAccent)),
         const SizedBox(height: 6),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.4, color: Colors.black)),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.4, color: RetroTheme.onAccent)),
       ]),
     );
   }
@@ -398,10 +494,10 @@ class _ResultsScreenState extends State<ResultsScreen> {
               ),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(c['name']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.black)),
+                Text(c['name']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: RetroTheme.onAccent)),
                 if ((c['funding'] ?? '').toString().isNotEmpty || (c['investors'] ?? '').toString().isNotEmpty)
                   Text('${c['funding'] ?? ''}${(c['investors'] ?? '').toString().isNotEmpty ? ' · ${c['investors']}' : ''}',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: RetroTheme.onAccentMuted)),
               ])),
             ]),
           );
@@ -461,6 +557,15 @@ class _ResultsScreenState extends State<ResultsScreen> {
     );
   }
 
+  Color _platformColor(String platform) {
+    switch (platform.toLowerCase()) {
+      case 'ios': return RetroTheme.blue;
+      case 'android': return RetroTheme.mint;
+      case 'web': return RetroTheme.lavender;
+      default: return RetroTheme.lavender;
+    }
+  }
+
   Color _sourceColor(String source) {
     switch (source) {
       case 'product_hunt': return RetroTheme.pink;
@@ -479,6 +584,84 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
+  void _showTagLegend(BuildContext context) {
+    final colors = RetroColors.of(context);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(RetroTheme.radiusLg)),
+        side: BorderSide(color: colors.border, width: 2),
+      ),
+      builder: (ctx) {
+        final c = RetroColors.of(ctx);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: c.borderSubtle,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('TAG LEGEND', style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w900,
+                letterSpacing: 1.5, color: c.text,
+              )),
+              const SizedBox(height: 16),
+              Text('PLATFORMS', style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w800,
+                letterSpacing: 1.2, color: c.textMuted,
+              )),
+              const SizedBox(height: 8),
+              Row(children: [
+                _buildTag('IOS', RetroTheme.blue),
+                const SizedBox(width: 8),
+                Text('Apple App Store', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text)),
+              ]),
+              const SizedBox(height: 6),
+              Row(children: [
+                _buildTag('ANDROID', RetroTheme.mint),
+                const SizedBox(width: 8),
+                Text('Google Play Store', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text)),
+              ]),
+              const SizedBox(height: 16),
+              Text('SOURCES', style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w800,
+                letterSpacing: 1.2, color: c.textMuted,
+              )),
+              const SizedBox(height: 8),
+              Row(children: [
+                _buildTag('PH', RetroTheme.pink),
+                const SizedBox(width: 8),
+                Text('Product Hunt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text)),
+              ]),
+              const SizedBox(height: 6),
+              Row(children: [
+                _buildTag('YC', const Color(0xFFFF6600)),
+                const SizedBox(width: 8),
+                Text('Y Combinator', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text)),
+              ]),
+              const SizedBox(height: 6),
+              Row(children: [
+                _buildTag('WEB', RetroTheme.lavender),
+                const SizedBox(width: 8),
+                Text('Web / Other', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: c.text)),
+              ]),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildCompetitorsSection(List<dynamic> competitors) {
     if (competitors.isEmpty) return const SizedBox.shrink();
     final colors = RetroColors.of(context);
@@ -492,11 +675,23 @@ class _ResultsScreenState extends State<ResultsScreen> {
             children: [
               Icon(LucideIcons.search, size: 22, color: colors.iconDefault),
               const SizedBox(width: 8),
-              const Flexible(
+              const Expanded(
                 child: Text(
                   'COMPETITORS ANALYZED',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.0),
                   overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => _showTagLegend(context),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: colors.background,
+                    borderRadius: BorderRadius.circular(RetroTheme.radiusSm),
+                    border: Border.all(color: colors.borderSubtle, width: 1.5),
+                  ),
+                  child: Icon(LucideIcons.info, size: 16, color: colors.textMuted),
                 ),
               ),
             ],
@@ -528,13 +723,14 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       const SizedBox(width: 6),
                       _buildTag(
                         comp['platform'].toString().toUpperCase(),
-                        comp['platform'] == 'ios' ? RetroTheme.blue : RetroTheme.mint,
+                        _platformColor(comp['platform'].toString()),
                       ),
                     ],
                     // Only show source badge when it's a distinct origin (PH, YC)
-                    // not when it merely repeats the platform (android/ios/web)
+                    // not when it merely repeats the platform
                     if (comp['source'] != null &&
-                        !{'android', 'ios', 'web', 'hardware'}.contains(
+                        !{'android', 'ios', 'web', 'hardware',
+                          'play_store', 'app_store'}.contains(
                             comp['source'].toString().toLowerCase())) ...[
                       const SizedBox(width: 4),
                       _buildTag(
@@ -604,17 +800,48 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 ),
         ],
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 960),
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(
-              horizontal: isWide ? 40.0 : 20.0,
-              vertical: 24.0,
-            ),
-            child: Column(
-              children: [
+      floatingActionButton: _showBackToTop
+          ? FloatingActionButton.small(
+              backgroundColor: RetroTheme.yellow,
+              foregroundColor: RetroTheme.onAccent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
+                side: BorderSide(color: colors.border, width: RetroTheme.borderWidthMedium),
+              ),
+              onPressed: () => _scrollCtrl.animateTo(
+                0,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeOut,
+              ),
+              child: const Icon(LucideIcons.arrowUp, size: 20),
+            )
+          : null,
+      body: Column(
+        children: [
+          // ── Section jump bar ──
+          _buildSectionJumpBar(
+            hates: hates,
+            loves: loves,
+            roadmap: roadmap,
+            communitySignals: communitySignals,
+            competitors: competitors,
+            colors: colors,
+          ),
+          // ── Scrollable content ──
+          Expanded(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 960),
+                child: SingleChildScrollView(
+                  controller: _scrollCtrl,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isWide ? 40.0 : 20.0,
+                    vertical: 24.0,
+                  ),
+                  child: Column(
+                    children: [
                 // Score + Breakdown row on desktop, column on mobile
+                SizedBox(key: _keyFor('score'), height: 0),
                 if (isWide && breakdown.isNotEmpty)
                   IntrinsicHeight(
                     child: Row(
@@ -623,35 +850,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                       // Score gauge card
                       Expanded(
                         flex: 2,
-                        child: RetroCard(
-                          backgroundColor: RetroTheme.yellow,
-                          child: Column(
-                            children: [
-                              const Text(
-                                'OPPORTUNITY SCORE',
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.black),
-                              ),
-                              const SizedBox(height: 20),
-                              _buildScoreGauge(score),
-                              if (targetOs.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: colors.surface,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: colors.border, width: 2),
-                                  ),
-                                  child: Text(
-                                    'Target: $targetOs',
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
+                        child: _buildScoreCard(score, targetOs),
                       ),
                       const SizedBox(width: 20),
                       // Breakdown card
@@ -683,35 +882,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   )
                 else ...[
                   // Mobile: stacked
-                  RetroCard(
-                    backgroundColor: RetroTheme.yellow,
-                    child: Column(
-                      children: [
-                        const Text(
-                          'OPPORTUNITY SCORE',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.black),
-                        ),
-                        const SizedBox(height: 20),
-                        _buildScoreGauge(score),
-                        if (targetOs.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: colors.surface,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: colors.border, width: 2),
-                            ),
-                            child: Text(
-                              'Target: $targetOs',
-                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                  _buildScoreCard(score, targetOs),
                   if (breakdown.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     RetroCard(
@@ -742,6 +913,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 if (category.isNotEmpty) _buildCategoryBadge(category, subcategory),
 
                 // Hate / Love — side by side on wide, stacked on mobile
+                SizedBox(key: _keyFor('sentiment'), height: 0),
                 if (isWide)
                   IntrinsicHeight(
                     child: Row(
@@ -760,10 +932,12 @@ class _ResultsScreenState extends State<ResultsScreen> {
                 ],
 
                 const SizedBox(height: 20),
+                SizedBox(key: _keyFor('roadmap'), height: 0),
                 _buildListSection('Day-1 MVP Roadmap', LucideIcons.rocket, roadmap, RetroTheme.lavender),
 
                 if (communitySignals.isNotEmpty) ...[
                   const SizedBox(height: 20),
+                  SizedBox(key: _keyFor('community'), height: 0),
                   _buildListSection(
                     'Community Signals',
                     LucideIcons.messageCircle,
@@ -772,6 +946,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                   ),
                 ],
 
+                SizedBox(key: _keyFor('market'), height: 0),
                 if ((widget.result['tam'] as String? ?? '').isNotEmpty ||
                     (widget.result['sam'] as String? ?? '').isNotEmpty ||
                     (widget.result['som'] as String? ?? '').isNotEmpty) ...[
@@ -818,6 +993,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
 
                 if (competitors.isNotEmpty) ...[
                   const SizedBox(height: 20),
+                  SizedBox(key: _keyFor('competitors'), height: 0),
                   _buildCompetitorsSection(competitors),
                 ],
 
@@ -825,6 +1001,77 @@ class _ResultsScreenState extends State<ResultsScreen> {
               ],
             ),
           ),
+        ),
+      ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionJumpBar({
+    required List<dynamic> hates,
+    required List<dynamic> loves,
+    required List<dynamic> roadmap,
+    required List<dynamic> communitySignals,
+    required List<dynamic> competitors,
+    required RetroColors colors,
+  }) {
+    final sections = <({String id, String label, IconData icon})>[
+      (id: 'score', label: 'Score', icon: LucideIcons.gauge),
+      if (hates.isNotEmpty || loves.isNotEmpty)
+        (id: 'sentiment', label: 'Sentiment', icon: LucideIcons.heart),
+      if (roadmap.isNotEmpty)
+        (id: 'roadmap', label: 'MVP', icon: LucideIcons.rocket),
+      if (communitySignals.isNotEmpty)
+        (id: 'community', label: 'Community', icon: LucideIcons.messageCircle),
+      (id: 'market', label: 'Market', icon: LucideIcons.trendingUp),
+      if (competitors.isNotEmpty)
+        (id: 'competitors', label: 'Competitors', icon: LucideIcons.search),
+    ];
+
+    if (sections.length <= 2) return const SizedBox.shrink();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.borderSubtle, width: 1)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: sections.map((s) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: GestureDetector(
+                onTap: () => _scrollToSection(s.id),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: colors.background,
+                    borderRadius: BorderRadius.circular(RetroTheme.radiusSm),
+                    border: Border.all(color: colors.borderSubtle, width: 1.5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(s.icon, size: 12, color: colors.textMuted),
+                      const SizedBox(width: 4),
+                      Text(
+                        s.label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );

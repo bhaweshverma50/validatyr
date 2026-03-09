@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_card.dart';
 import '../../shared_widgets/retro_button.dart';
+import '../../shared_widgets/retro_skeleton.dart';
 import '../../services/api_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/validation_job_recovery.dart';
@@ -258,20 +259,27 @@ class HistoryScreenState extends State<HistoryScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: _buildBody(),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: _buildBody(),
+      ),
     );
   }
 
   Widget _buildBody() {
     final colors = RetroColors.of(context);
     if (_isLoading) {
-      return Center(
-        child: CircularProgressIndicator(color: colors.text, strokeWidth: 3),
+      return const RetroSkeletonList(
+        key: ValueKey('loading'),
+        itemCount: 4,
+        lineCount: 2,
+        showAvatar: true,
       );
     }
 
     if (_errorMessage != null) {
       return Center(
+        key: const ValueKey('error'),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: RetroCard(
@@ -316,6 +324,7 @@ class HistoryScreenState extends State<HistoryScreen> {
 
     if (_items.isEmpty && _runningJobs.isEmpty) {
       return Center(
+        key: const ValueKey('empty'),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -333,6 +342,7 @@ class HistoryScreenState extends State<HistoryScreen> {
     }
 
     return RefreshIndicator(
+      key: const ValueKey('list'),
       color: colors.text,
       onRefresh: _load,
       child: ListView(
@@ -416,7 +426,7 @@ class HistoryScreenState extends State<HistoryScreen> {
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w900,
-                      color: Colors.black, // on accent bg
+                      color: RetroTheme.onAccent,
                     ),
                   ),
                 ),
@@ -453,11 +463,12 @@ class HistoryScreenState extends State<HistoryScreen> {
           Row(
             children: [
               Expanded(
-                child: _SmallBtn(
-                  label: 'View',
+                child: RetroButton(
+                  text: 'View',
                   color: RetroTheme.mint,
-                  icon: LucideIcons.eye,
-                  onTap: () => Navigator.push(
+                  icon: const Icon(LucideIcons.eye, size: 13),
+                  size: RetroButtonSize.small,
+                  onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => ResultsScreen(
@@ -470,11 +481,12 @@ class HistoryScreenState extends State<HistoryScreen> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _SmallBtn(
-                  label: 'Edit & Rerun',
+                child: RetroButton(
+                  text: 'Rerun',
                   color: RetroTheme.blue,
-                  icon: LucideIcons.refreshCw,
-                  onTap: () {
+                  icon: const Icon(LucideIcons.refreshCw, size: 13),
+                  size: RetroButtonSize.small,
+                  onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -486,11 +498,12 @@ class HistoryScreenState extends State<HistoryScreen> {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _SmallBtn(
-                  label: 'Delete',
+                child: RetroButton(
+                  text: 'Delete',
                   color: RetroTheme.pink,
-                  icon: LucideIcons.trash2,
-                  onTap: () => _delete(id),
+                  icon: const Icon(LucideIcons.trash2, size: 13),
+                  size: RetroButtonSize.small,
+                  onPressed: () => _delete(id),
                 ),
               ),
             ],
@@ -537,7 +550,7 @@ class HistoryScreenState extends State<HistoryScreen> {
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       height: 1.3,
-                      color: Colors.black, // on yellow accent bg
+                      color: RetroTheme.onAccent,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -546,7 +559,7 @@ class HistoryScreenState extends State<HistoryScreen> {
                     style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF475569), // muted on yellow
+                      color: RetroTheme.onAccentMuted,
                     ),
                   ),
                 ],
@@ -555,73 +568,7 @@ class HistoryScreenState extends State<HistoryScreen> {
             const Icon(
               LucideIcons.chevronRight,
               size: 18,
-              color: Color(0xFF475569), // on yellow accent bg
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SmallBtn extends StatefulWidget {
-  final String label;
-  final Color color;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _SmallBtn({
-    required this.label,
-    required this.color,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  State<_SmallBtn> createState() => _SmallBtnState();
-}
-
-class _SmallBtnState extends State<_SmallBtn> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = RetroColors.of(context);
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onTap();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        transform: Matrix4.translationValues(
-          _pressed ? 2 : 0,
-          _pressed ? 2 : 0,
-          0,
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-        decoration: BoxDecoration(
-          color: widget.color,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: colors.border, width: 2),
-          boxShadow: _pressed
-              ? []
-              : RetroTheme.shadowSmOf(context),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(widget.icon, size: 13, color: Colors.black),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                widget.label,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.black),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
+              color: RetroTheme.onAccentMuted,
             ),
           ],
         ),

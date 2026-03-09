@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../core/utils.dart';
+import '../../shared_widgets/retro_skeleton.dart';
 import '../../services/notification_service.dart';
 import '../../services/research_api_service.dart';
 import '../../services/supabase_service.dart';
@@ -91,15 +92,6 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     }
   }
 
-  Future<void> _deleteItem(Map<String, dynamic> item) async {
-    final id = item['id'];
-    final wasUnread = item['is_read'] != true;
-    setState(() => _items.remove(item));
-    await NotificationService.instance.deleteNotification(id);
-    if (wasUnread) {
-      await NotificationService.instance.refreshUnreadCount();
-    }
-  }
 
   Future<void> _onTap(Map<String, dynamic> item) async {
     final id = item['id'];
@@ -127,43 +119,118 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     final type = item['type'] as String? ?? '';
     final metadata = _parseMetadata(item['metadata']);
 
-    switch (type) {
-      case 'validation_complete':
-        final resultId = metadata['result_id']?.toString();
-        if (resultId == null) return;
-        final result = await SupabaseService.fetchById(resultId);
-        if (result != null && mounted) {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => ResultsScreen(result: result, saveToHistory: false),
-          ));
-        }
-        break;
-      case 'research_complete':
-      case 'high_score_alert':
-        final reportId = metadata['report_id']?.toString();
-        if (reportId == null) return;
-        final report = await ResearchApiService.getReport(reportId);
-        if (report != null && mounted) {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => ReportDetailScreen(report: report),
-          ));
-        }
-        break;
-      case 'schedule_reminder':
-        final topicId = metadata['topic_id']?.toString();
-        if (topicId == null) return;
-        final topics = await ResearchApiService.getTopics();
-        final topic = topics.firstWhere(
-          (t) => t['id']?.toString() == topicId,
-          orElse: () => <String, dynamic>{},
-        );
-        if (topic.isNotEmpty && mounted) {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => TopicChannelScreen(topic: topic),
-          ));
-        }
-        break;
+    // Show loading indicator during async navigation
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16, height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: RetroColors.of(context).text,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text('Loading...'),
+          ],
+        ),
+        duration: const Duration(seconds: 10),
+      ),
+    );
+
+    try {
+      switch (type) {
+        case 'validation_complete':
+          final resultId = metadata['result_id']?.toString();
+          Map<String, dynamic>? result;
+          if (resultId != null) {
+            result = await SupabaseService.fetchById(resultId);
+          }
+          // Fallback: search history by idea text from the notification body
+          if (result == null) {
+            final history = await SupabaseService.fetchHistory();
+            final body = item['body'] as String? ?? '';
+            // Notification body format: "'idea text' scored X/100"
+            final ideaMatch = RegExp(r"^'(.+?)['']").firstMatch(body);
+            if (ideaMatch != null && history.isNotEmpty) {
+              final ideaPrefix = ideaMatch.group(1) ?? '';
+              result = history.cast<Map<String, dynamic>?>().firstWhere(
+                (h) => (h?['idea'] as String? ?? '').startsWith(ideaPrefix),
+                orElse: () => null,
+              );
+            }
+            // Still nothing — just show the most recent result
+            result ??= history.isNotEmpty ? history.first : null;
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).clearSnackBars();
+          }
+          if (result != null && mounted) {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ResultsScreen(result: result!, saveToHistory: false),
+            ));
+          } else {
+            _showNavError('Could not find the validation result.');
+          }
+          break;
+        case 'research_complete':
+        case 'high_score_alert':
+          final reportId = metadata['report_id']?.toString();
+          if (reportId == null) {
+            if (mounted) ScaffoldMessenger.of(context).clearSnackBars();
+            _showNavError('Report ID not found in notification.');
+            return;
+          }
+          final report = await ResearchApiService.getReport(reportId);
+          if (mounted) ScaffoldMessenger.of(context).clearSnackBars();
+          if (report != null && mounted) {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => ReportDetailScreen(report: report),
+            ));
+          } else {
+            _showNavError('Could not load the research report.');
+          }
+          break;
+        case 'schedule_reminder':
+          final topicId = metadata['topic_id']?.toString();
+          if (topicId == null) {
+            if (mounted) ScaffoldMessenger.of(context).clearSnackBars();
+            _showNavError('Topic ID not found in notification.');
+            return;
+          }
+          final topics = await ResearchApiService.getTopics();
+          if (mounted) ScaffoldMessenger.of(context).clearSnackBars();
+          final topic = topics.firstWhere(
+            (t) => t['id']?.toString() == topicId,
+            orElse: () => <String, dynamic>{},
+          );
+          if (topic.isNotEmpty && mounted) {
+            Navigator.push(context, MaterialPageRoute(
+              builder: (_) => TopicChannelScreen(topic: topic),
+            ));
+          } else {
+            _showNavError('Could not find the research topic.');
+          }
+          break;
+        default:
+          if (mounted) ScaffoldMessenger.of(context).clearSnackBars();
+          break;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        _showNavError('Failed to load: $e');
+      }
     }
+  }
+
+  void _showNavError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   IconData _iconForType(String type) {
@@ -238,12 +305,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         ],
       ),
       body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(
-                color: colors.border,
-                strokeWidth: 2.5,
-              ),
-            )
+          ? const RetroSkeletonList(itemCount: 4, lineCount: 2, showAvatar: true)
           : _items.isEmpty
           ? Center(
               child: Column(
@@ -294,7 +356,47 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     return Dismissible(
       key: ValueKey(itemId),
       direction: DismissDirection.endToStart,
-      onDismissed: (_) => _deleteItem(item),
+      onDismissed: (_) {
+        final removedItem = Map<String, dynamic>.from(item);
+        final removedIndex = _items.indexOf(item);
+        // Remove from UI immediately but defer backend deletion
+        setState(() => _items.remove(item));
+        var undone = false;
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Notification deleted'),
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: RetroTheme.yellow,
+              onPressed: () {
+                undone = true;
+                setState(() {
+                  if (removedIndex >= 0 && removedIndex <= _items.length) {
+                    _items.insert(removedIndex, removedItem);
+                  } else {
+                    _items.add(removedItem);
+                  }
+                });
+              },
+            ),
+          ),
+        ).closed.then((_) {
+          if (!undone) {
+            // Always delete from backend even if widget disposed
+            final id = removedItem['id'];
+            final wasUnread = removedItem['is_read'] != true;
+            NotificationService.instance.deleteNotification(id);
+            if (wasUnread) {
+              NotificationService.instance.refreshUnreadCount();
+            }
+            // Only update local UI state if still mounted
+            if (mounted) {
+              setState(() => _items.remove(removedItem));
+            }
+          }
+        });
+      },
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
@@ -305,9 +407,9 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         ),
         child: const Icon(LucideIcons.trash2, color: Colors.black, size: 22),
       ),
-      child: GestureDetector(
-      onTap: () => _onTap(item),
-      child: Container(
+      child: _TappableContainer(
+        onTap: () => _onTap(item),
+        child: Container(
         decoration: BoxDecoration(
           color: isRead ? colors.surface : accentColor,
           borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
@@ -401,6 +503,38 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
         ),
       ),
     ),
+    );
+  }
+}
+
+/// A simple tappable wrapper that adds an opacity press effect.
+class _TappableContainer extends StatefulWidget {
+  final VoidCallback onTap;
+  final Widget child;
+
+  const _TappableContainer({required this.onTap, required this.child});
+
+  @override
+  State<_TappableContainer> createState() => _TappableContainerState();
+}
+
+class _TappableContainerState extends State<_TappableContainer> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 100),
+        opacity: _pressed ? 0.7 : 1.0,
+        child: widget.child,
+      ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../home/home_screen.dart';
 import '../research/research_dashboard_screen.dart';
@@ -61,6 +62,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _onTabTapped(int i) {
+    HapticFeedback.lightImpact();
     setState(() => _currentIndex = i);
     if (i == 2) {
       _historyKey.currentState?.refresh();
@@ -100,86 +102,93 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                   final isActive = _currentIndex == i;
                   final isAlerts = i == 3;
                   return Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => _onTabTapped(i),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isActive ? tab.color : Colors.transparent,
-                          borderRadius:
-                              BorderRadius.circular(RetroTheme.radiusMd),
-                          border: Border.all(
-                            color: isActive
-                                ? colors.border
-                                : Colors.transparent,
-                            width: RetroTheme.borderWidthMedium,
+                    child: Semantics(
+                      selected: isActive,
+                      label: '${tab.label} tab${isAlerts && unreadCount > 0 ? ', $unreadCount unread' : ''}',
+                      button: true,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => _onTabTapped(i),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isActive ? tab.color : Colors.transparent,
+                            borderRadius:
+                                BorderRadius.circular(RetroTheme.radiusMd),
+                            border: Border.all(
+                              color: isActive
+                                  ? colors.border
+                                  : Colors.transparent,
+                              width: RetroTheme.borderWidthMedium,
+                            ),
+                            boxShadow: isActive
+                                ? RetroTheme.shadowSmOf(context)
+                                : null,
                           ),
-                          boxShadow: isActive
-                              ? RetroTheme.shadowSmOf(context)
-                              : null,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Icon(
-                                  tab.icon,
-                                  size: 20,
-                                  color: isActive
-                                      ? Colors.black
-                                      : colors.iconMuted,
-                                ),
-                                if (isAlerts && unreadCount > 0)
-                                  Positioned(
-                                    right: -8,
-                                    top: -6,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(2.5),
-                                      decoration: BoxDecoration(
-                                        color: RetroTheme.pink,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: Colors.black,
-                                          width: 1.5,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Icon(
+                                    tab.icon,
+                                    size: 20,
+                                    color: isActive
+                                        ? Colors.black
+                                        : colors.iconMuted,
+                                  ),
+                                  if (isAlerts && unreadCount > 0)
+                                    Positioned(
+                                      right: -8,
+                                      top: -6,
+                                      child: ExcludeSemantics(
+                                        child: Container(
+                                          padding: const EdgeInsets.all(2.5),
+                                          decoration: BoxDecoration(
+                                            color: RetroTheme.pink,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: Colors.black,
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          constraints: const BoxConstraints(
+                                            minWidth: 16,
+                                            minHeight: 16,
+                                          ),
+                                          child: Text(
+                                            unreadCount > 9
+                                                ? '9+'
+                                                : '$unreadCount',
+                                            style: const TextStyle(
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.w900,
+                                              color: Colors.black,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
                                         ),
-                                      ),
-                                      constraints: const BoxConstraints(
-                                        minWidth: 16,
-                                        minHeight: 16,
-                                      ),
-                                      child: Text(
-                                        unreadCount > 9
-                                            ? '9+'
-                                            : '$unreadCount',
-                                        style: const TextStyle(
-                                          fontSize: 8,
-                                          fontWeight: FontWeight.w900,
-                                          color: Colors.black,
-                                        ),
-                                        textAlign: TextAlign.center,
                                       ),
                                     ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              tab.label,
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: isActive
-                                    ? FontWeight.w800
-                                    : FontWeight.w500,
-                                color:
-                                    isActive ? Colors.black : colors.iconMuted,
+                                ],
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 2),
+                              Text(
+                                tab.label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: isActive
+                                      ? FontWeight.w800
+                                      : FontWeight.w500,
+                                  color:
+                                      isActive ? Colors.black : colors.iconMuted,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

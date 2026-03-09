@@ -76,14 +76,16 @@ class _LoadingScreenState extends State<LoadingScreen>
       begin: 0,
       end: 0,
     ).animate(CurvedAnimation(parent: _progressCtrl, curve: Curves.easeInOut));
-    // Seed the first step: Category Detector
-    _stepNames.add('Category Detector');
-    _stepMessages.add(
-      widget.category != null
-          ? 'Category: ${_categoryLabels[widget.category] ?? widget.category}'
-          : 'Classifying your idea...',
-    );
-    _stepStates.add(_StepState.active);
+    // Pre-populate all pipeline steps so layout is stable from the start
+    for (int i = 0; i < _pipelineSteps.length; i++) {
+      _stepNames.add(_pipelineSteps[i]['name']!);
+      _stepMessages.add(i == 0
+          ? (widget.category != null
+              ? 'Category: ${_categoryLabels[widget.category] ?? widget.category}'
+              : 'Classifying your idea...')
+          : 'Waiting...');
+      _stepStates.add(i == 0 ? _StepState.active : _StepState.pending);
+    }
     _jobId = widget.jobId;
     if (_jobId != null) {
       _startPolling();
@@ -246,11 +248,22 @@ class _LoadingScreenState extends State<LoadingScreen>
         }
         _stepNames[stepIdx] = agentName;
         _stepMessages[stepIdx] = msg;
-        // Mark previous steps done
-        for (int i = 0; i < stepIdx; i++) {
-          _stepStates[i] = _StepState.done;
+        // Ensure exactly one active step: done before, active at, pending after
+        for (int i = 0; i < _stepStates.length; i++) {
+          if (i < stepIdx) {
+            _stepStates[i] = _StepState.done;
+            if (_stepMessages[i] == 'Waiting...') {
+              _stepMessages[i] = 'Completed';
+            }
+          } else if (i == stepIdx) {
+            _stepStates[i] = _StepState.active;
+          } else {
+            // Only reset to pending if not already done (handles out-of-order)
+            if (_stepStates[i] != _StepState.done) {
+              _stepStates[i] = _StepState.pending;
+            }
+          }
         }
-        _stepStates[stepIdx] = _StepState.active;
       });
       _animateTo((stepIdx + 0.5) / _totalSteps);
     } else if (event.event == 'result') {
@@ -335,17 +348,23 @@ class _LoadingScreenState extends State<LoadingScreen>
         _stepMessages.add('');
         _stepStates.add(_StepState.pending);
       }
-      // Backfill completed steps that are missing names
-      for (int i = 0; i < stepIdx; i++) {
-        if (_stepNames[i].isEmpty && i < _pipelineSteps.length) {
-          _stepNames[i] = _pipelineSteps[i]['name']!;
-          _stepMessages[i] = _pipelineSteps[i]['msg']!;
-        }
-        _stepStates[i] = _StepState.done;
-      }
       _stepNames[stepIdx] = agent;
       _stepMessages[stepIdx] = msg;
-      _stepStates[stepIdx] = _StepState.active;
+      // Ensure exactly one active step
+      for (int i = 0; i < _stepStates.length; i++) {
+        if (i < stepIdx) {
+          _stepStates[i] = _StepState.done;
+          if (_stepMessages[i] == 'Waiting...') {
+            _stepMessages[i] = 'Completed';
+          }
+        } else if (i == stepIdx) {
+          _stepStates[i] = _StepState.active;
+        } else {
+          if (_stepStates[i] != _StepState.done) {
+            _stepStates[i] = _StepState.pending;
+          }
+        }
+      }
     });
     _animateTo((stepIdx + 0.5) / _totalSteps);
   }
@@ -455,7 +474,7 @@ class _LoadingScreenState extends State<LoadingScreen>
                             fontSize: 11,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.2,
-                            color: Colors.black, // on mint accent
+                            color: RetroTheme.onAccent,
                           ),
                         ),
                       ),
@@ -465,17 +484,66 @@ class _LoadingScreenState extends State<LoadingScreen>
                     _buildProgressBar(),
                     const SizedBox(height: 28),
                     _buildStepsList(),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 16),
+                    // ── Multitask hint ──
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(LucideIcons.bellRing, size: 14, color: colors.textMuted),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Feel free to go back and explore — we\'ll notify you when results are ready!',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: colors.textMuted,
+                              height: 1.4,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
                     RetroButton(
                       text: 'Cancel Job',
                       color: RetroTheme.pink,
-                      onPressed: () {
+                      onPressed: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) {
+                            final dlgColors = RetroColors.of(ctx);
+                            return AlertDialog(
+                              title: Text('Cancel validation?', style: TextStyle(fontWeight: FontWeight.w900, color: dlgColors.text)),
+                              content: Text('The analysis is still in progress. Are you sure?', style: TextStyle(color: dlgColors.textMuted)),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text('Keep going', style: TextStyle(fontWeight: FontWeight.w700, color: dlgColors.textMuted)),
+                                ),
+                                TextButton(
+                                  style: TextButton.styleFrom(
+                                    backgroundColor: RetroTheme.pink,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(6),
+                                      side: BorderSide(color: dlgColors.border, width: 2),
+                                    ),
+                                  ),
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('Cancel', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                        if (confirmed != true || !context.mounted) return;
                         _sub?.cancel();
                         _pollTimer?.cancel();
                         if (_jobId != null) {
                           ApiService.cancelValidationJob(_jobId!);
                         }
-                        Navigator.pop(context);
+                        if (context.mounted) Navigator.pop(context);
                       },
                       icon: const Icon(
                         LucideIcons.x,
@@ -559,18 +627,16 @@ class _LoadingScreenState extends State<LoadingScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (int i = 0; i < _stepNames.length; i++)
-              if (_stepNames[i].isNotEmpty)
-                _buildStepRow(
-                  _AgentStep(
-                    name: _stepNames[i],
-                    defaultMessage: _stepMessages[i],
-                    stepNumber: i + 1,
-                  ),
-                  _stepStates[i],
-                  _stepMessages[i],
-                  i < _stepNames.length - 1 &&
-                      _stepNames.skip(i + 1).any((n) => n.isNotEmpty),
+              _buildStepRow(
+                _AgentStep(
+                  name: _stepNames[i],
+                  defaultMessage: _stepMessages[i],
+                  stepNumber: i + 1,
                 ),
+                _stepStates[i],
+                _stepMessages[i],
+                i < _stepNames.length - 1,
+              ),
           ],
         ),
       ),
