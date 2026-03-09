@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 
 class ResearchApiService {
   static String get _baseUrl {
@@ -17,7 +18,11 @@ class ResearchApiService {
     List<String> interests = const [],
     String? scheduleCron,
     bool startImmediately = true,
+    String? timezone,
   }) async {
+    // Auto-detect device timezone if not provided
+    final tz = timezone ?? await FlutterTimezone.getLocalTimezone();
+
     final response = await http.post(
       Uri.parse('$_baseUrl/topics'),
       headers: {'Content-Type': 'application/json'},
@@ -27,6 +32,7 @@ class ResearchApiService {
         'interests': interests,
         'schedule_cron': scheduleCron,
         'start_immediately': startImmediately,
+        'timezone': tz,
       }),
     );
     if (response.statusCode != 200) {
