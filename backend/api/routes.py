@@ -27,6 +27,7 @@ import asyncio
 import json as _json
 import os
 import queue as _queue
+import threading
 from concurrent.futures import ThreadPoolExecutor
 import logging
 import uuid
@@ -37,6 +38,9 @@ from google import genai as _genai
 logger = logging.getLogger(__name__)
 
 _executor = ThreadPoolExecutor(max_workers=8)
+
+# Cancellation registry: job_id → threading.Event (set = cancelled)
+_cancel_events: dict[str, threading.Event] = {}
 
 _CATEGORY_LABELS = {
     "mobile_app": "Mobile App",
@@ -75,6 +79,7 @@ class ValidationRequest(BaseModel):
     app_store_name: Optional[str] = None
     model_provider: str = "gemini"
     category: Optional[str] = None
+    metadata_only: bool = False  # Return category + competitors without running AI agents
 
 
 class PushTokenRequest(BaseModel):
@@ -117,29 +122,46 @@ async def unregister_push_token(request: PushTokenDeleteRequest):
     delete_push_token(request.token)
     return {"status": "ok"}
 
-@router.post("/validate", response_model=IdeaValidationResult)
+@router.post("/validate")
 async def validate_idea(request: ValidationRequest):
     reviews = []
     competitors_meta = []
-    
+
+    # ── Step 1: Category detection ─────────────────────────────────
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not set.")
+    client = _genai.Client(api_key=api_key)
+    cat_result = detect_category(client, request.idea, request.category)
+    category = cat_result.category
+
+    # ── Step 2: Discovery ──────────────────────────────────────────
     if request.play_store_id or (request.app_store_id and request.app_store_name):
         logger.info("Using explicitly provided App Store IDs...")
         if request.play_store_id:
             play_reviews = scrape_play_store_reviews(request.play_store_id, count=200)
             reviews.extend(play_reviews)
-            
+
         if request.app_store_id and request.app_store_name:
             ios_reviews = scrape_app_store_reviews(request.app_store_name, request.app_store_id, count=200)
             reviews.extend(ios_reviews)
     else:
         logger.info("No App IDs provided. Firing up Discovery Agent...")
-        reviews, competitors_meta = discover_competitors_and_scrape(request.idea, request.category or "mobile_app")
-        
-    if not reviews:
+        reviews, competitors_meta = discover_competitors_and_scrape(request.idea, category)
+
+    if not reviews and not competitors_meta:
         raise HTTPException(status_code=404, detail="No competitors found or failed to scrape reviews. Try providing specific App IDs.")
 
-    # Community scraping
-    category = request.category or "mobile_app"
+    # ── metadata_only: return category + competitors without AI agents ──
+    if request.metadata_only:
+        return {
+            "category": category,
+            "subcategory": cat_result.subcategory,
+            "competitors_analyzed": competitors_meta,
+            "review_count": len(reviews),
+        }
+
+    # ── Step 3: Community scraping ─────────────────────────────────
     community_result = CommunityScraperService(category).scrape_all(
         competitor_names=[c.get("title", "") for c in competitors_meta],
         idea_keywords=request.idea,
@@ -151,14 +173,19 @@ async def validate_idea(request: ValidationRequest):
         # Pass the concatenated reviews to the Multi-Agent validation engine
         logger.info(f"Starting Multi-Agent analysis for idea: {request.idea[:50]}...")
         result = analyze_reviews_multi_agent(request.idea, reviews, competitors_meta, request.model_provider, category, community_data=community_text)
-        
+
         # Save to database (will mock if Supabase credentials are not set)
-        save_validation_result(request.idea, result.model_dump())
+        save_resp = save_validation_result(request.idea, result.model_dump())
+        result_id = None
+        if save_resp.get("status") == "success" and save_resp.get("data"):
+            rows = save_resp["data"]
+            if isinstance(rows, list) and rows:
+                result_id = rows[0].get("id")
         send_notification(
             type="validation_complete",
             title="Validation Complete",
             body=f"'{request.idea[:50]}' scored {result.opportunity_score}/100",
-            metadata={"score": result.opportunity_score},
+            metadata={"score": result.opportunity_score, "result_id": result_id},
         )
 
         return result
@@ -168,11 +195,24 @@ async def validate_idea(request: ValidationRequest):
         logger.error(f"Internal Error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal AI analysis error: {str(e)}")
 
+class _Cancelled(Exception):
+    """Raised when a pipeline job is cancelled."""
+    pass
+
+
+def _check_cancelled(job_id: str) -> None:
+    """Raise _Cancelled if this job's cancel event has been set."""
+    ev = _cancel_events.get(job_id)
+    if ev and ev.is_set():
+        raise _Cancelled(f"Job {job_id} was cancelled")
+
+
 def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | None) -> None:
     """Run the full validation pipeline in a background thread.
 
     Puts SSE-style dicts into *q*.  Runs independently of the SSE connection
     so the pipeline completes and saves even if the client disconnects.
+    Checks for cancellation before each expensive step.
     """
     total_steps = 6
     job_id = None
@@ -182,6 +222,8 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
 
     try:
         job_id = str(uuid.uuid4())
+        # Register a cancel event for this job
+        _cancel_events[job_id] = threading.Event()
         create_validation_job(job_id, idea, user_category)
         _put("job", {"job_id": job_id})
 
@@ -201,6 +243,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         client = _genai.Client(api_key=api_key)
 
         # ── Step 1: Category Detection ────────────────────────────────
+        _check_cancelled(job_id)
         _put("status", {"agent": "Category Detector",
              "message": "Classifying your idea..." if not user_category else f"Category set to {user_category}",
              "step": 1, "total": total_steps})
@@ -216,6 +259,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _update_job(1, "Category Detector", f"Identified: {_CATEGORY_LABELS.get(category, category)} · {subcategory}")
 
         # ── Step 2: Discovery ─────────────────────────────────────────
+        _check_cancelled(job_id)
         _put("status", {"agent": "Discovery Agent",
              "message": _DISCOVERY_MESSAGES.get(category, "Finding competitors..."),
              "step": 2, "total": total_steps})
@@ -233,6 +277,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
             return
 
         # ── Step 3: Community Scraping ─────────────────────────────────
+        _check_cancelled(job_id)
         _put("status", {"agent": "Community Scanner",
              "message": _COMMUNITY_MESSAGES.get(category, "Scraping community forums for real user signals..."),
              "step": 3, "total": total_steps})
@@ -249,6 +294,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _update_job(3, "Community Scanner", f"Scraped {community_result.total_posts} posts from {len(community_result.sources_succeeded)} sources.")
 
         # ── Step 4: Researcher Agent ──────────────────────────────────
+        _check_cancelled(job_id)
         _put("status", {"agent": "Researcher Agent",
              "message": _RESEARCHER_MESSAGES.get(category, "Researching market..."),
              "step": 4, "total": total_steps})
@@ -272,6 +318,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _update_job(4, "Researcher Agent", f"Found {len(researcher_result.what_users_hate)} pain points, {len(researcher_result.community_signals)} community signals.")
 
         # ── Step 5: PM Agent ──────────────────────────────────────────
+        _check_cancelled(job_id)
         _put("status", {"agent": "PM Agent",
              "message": "Building Day-1 MVP roadmap from pain points...",
              "step": 5, "total": total_steps})
@@ -284,6 +331,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         _update_job(5, "PM Agent", f"MVP roadmap ready — {len(pm_result.mvp_roadmap)} features.")
 
         # ── Step 6: Market Intelligence ───────────────────────────────
+        _check_cancelled(job_id)
         _put("status", {"agent": "Market Intelligence",
              "message": "Researching TAM/SAM/SOM, funded competitors, GTM strategy...",
              "step": 6, "total": total_steps})
@@ -342,7 +390,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
                 type="validation_complete",
                 title="Validation Complete",
                 body=f"'{idea[:50]}' scored {opportunity_score}/100",
-                metadata={"score": opportunity_score},
+                metadata={"score": opportunity_score, "result_id": result_id},
             )
         except Exception as db_err:
             logger.warning(f"Failed to save validation result: {db_err}")
@@ -356,13 +404,20 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
 
         _put("result", final_result.model_dump_json())
 
+    except _Cancelled:
+        logger.info(f"Pipeline cancelled for job {job_id}")
+        _put("error", {"message": "Validation cancelled."})
+        if job_id:
+            update_validation_job(job_id, {"status": "cancelled"})
     except Exception as e:
         logger.error(f"Pipeline error: {e}", exc_info=True)
         _put("error", {"message": str(e)})
         if job_id:
             update_validation_job(job_id, {"status": "failed", "error": str(e)})
     finally:
-        # Sentinel so the SSE generator knows the pipeline is done
+        # Clean up cancel event and send sentinel
+        if job_id:
+            _cancel_events.pop(job_id, None)
         q.put(None)
 
 
@@ -424,10 +479,22 @@ async def get_validation_job_status(job_id: str):
 
 @router.post("/validation-jobs/{job_id}/cancel")
 async def cancel_validation_job(job_id: str):
-    """Mark a validation job as cancelled."""
+    """Cancel a validation job, signalling the background pipeline to stop."""
     from services.db import get_validation_job
     job = get_validation_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    # Signal the background thread to stop before the next expensive step
+    ev = _cancel_events.get(job_id)
+    if ev:
+        ev.set()
     update_validation_job(job_id, {"status": "cancelled"})
     return {"status": "cancelled"}
+
+
+@router.delete("/history")
+async def clear_all_history():
+    """Delete all validations and validation_jobs."""
+    from services.db import delete_all_validations
+    deleted = delete_all_validations()
+    return {"deleted": deleted}

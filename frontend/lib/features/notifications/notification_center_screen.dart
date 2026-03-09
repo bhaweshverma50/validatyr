@@ -1,10 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../core/utils.dart';
 import '../../services/notification_service.dart';
+import '../../services/research_api_service.dart';
+import '../../services/supabase_service.dart';
+import '../research/topic_channel_screen.dart';
+import '../research/report_detail_screen.dart';
+import '../results/results_screen.dart';
 import 'notification_settings_screen.dart';
 
 class NotificationCenterScreen extends StatefulWidget {
@@ -85,11 +91,78 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     }
   }
 
+  Future<void> _deleteItem(Map<String, dynamic> item) async {
+    final id = item['id'];
+    final wasUnread = item['is_read'] != true;
+    setState(() => _items.remove(item));
+    await NotificationService.instance.deleteNotification(id);
+    if (wasUnread) {
+      await NotificationService.instance.refreshUnreadCount();
+    }
+  }
+
   Future<void> _onTap(Map<String, dynamic> item) async {
     final id = item['id'];
     if (item['is_read'] != true) {
       await NotificationService.instance.markAsRead(id);
       setState(() => item['is_read'] = true);
+    }
+    if (!mounted) return;
+    await _navigateForNotification(item);
+  }
+
+  Map<String, dynamic> _parseMetadata(dynamic raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    if (raw is String && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) return Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
+    return {};
+  }
+
+  Future<void> _navigateForNotification(Map<String, dynamic> item) async {
+    final type = item['type'] as String? ?? '';
+    final metadata = _parseMetadata(item['metadata']);
+
+    switch (type) {
+      case 'validation_complete':
+        final resultId = metadata['result_id']?.toString();
+        if (resultId == null) return;
+        final result = await SupabaseService.fetchById(resultId);
+        if (result != null && mounted) {
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => ResultsScreen(result: result, saveToHistory: false),
+          ));
+        }
+        break;
+      case 'research_complete':
+      case 'high_score_alert':
+        final reportId = metadata['report_id']?.toString();
+        if (reportId == null) return;
+        final report = await ResearchApiService.getReport(reportId);
+        if (report != null && mounted) {
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => ReportDetailScreen(report: report),
+          ));
+        }
+        break;
+      case 'schedule_reminder':
+        final topicId = metadata['topic_id']?.toString();
+        if (topicId == null) return;
+        final topics = await ResearchApiService.getTopics();
+        final topic = topics.firstWhere(
+          (t) => t['id']?.toString() == topicId,
+          orElse: () => <String, dynamic>{},
+        );
+        if (topic.isNotEmpty && mounted) {
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => TopicChannelScreen(topic: topic),
+          ));
+        }
+        break;
     }
   }
 
@@ -129,12 +202,9 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: Navigator.canPop(context),
         title: const Text(
-          'NOTIFICATIONS',
+          'ALERTS',
           style: TextStyle(
             fontFamily: 'Outfit',
             fontWeight: FontWeight.w900,
@@ -219,8 +289,23 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
     final isRead = item['is_read'] as bool? ?? false;
     final dateTime = formatDateTime(item['created_at']?.toString());
     final accentColor = _colorForType(type);
+    final itemId = item['id']?.toString() ?? UniqueKey().toString();
 
-    return GestureDetector(
+    return Dismissible(
+      key: ValueKey(itemId),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => _deleteItem(item),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: RetroTheme.pink,
+          borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
+          border: Border.all(color: colors.border, width: RetroTheme.borderWidthMedium),
+        ),
+        child: const Icon(LucideIcons.trash2, color: Colors.black, size: 22),
+      ),
+      child: GestureDetector(
       onTap: () => _onTap(item),
       child: Container(
         decoration: BoxDecoration(
@@ -315,6 +400,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }

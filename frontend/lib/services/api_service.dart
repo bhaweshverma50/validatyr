@@ -150,6 +150,16 @@ class ApiService {
     } catch (_) {}
   }
 
+  /// Delete all validations and validation_jobs via the backend.
+  static Future<void> clearAllHistory() async {
+    final resp = await http
+        .delete(Uri.parse('$_baseUrl/history'))
+        .timeout(const Duration(seconds: 10));
+    if (resp.statusCode != 200) {
+      throw Exception('Failed to clear history: ${resp.body}');
+    }
+  }
+
   static Future<void> registerPushToken({
     required String token,
     required String platform,

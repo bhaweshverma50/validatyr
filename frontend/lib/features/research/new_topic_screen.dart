@@ -67,16 +67,19 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
     }
 
     try {
+      final runNow = _schedule == 'manual';
       await ResearchApiService.createTopic(
         domain: _selectedDomain,
         keywords: keywords,
         interests: interests,
         scheduleCron: scheduleCron,
-        startImmediately: true,
+        startImmediately: runNow,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Research topic created! First run starting...')),
+          SnackBar(content: Text(runNow
+              ? 'Topic created — research starting now!'
+              : 'Topic created — will run at scheduled time.')),
         );
         Navigator.pop(context, true);
       }
@@ -121,9 +124,10 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
             _buildSectionLabel('DOMAIN'),
             const SizedBox(height: RetroTheme.spacingSm),
             SizedBox(
-              height: 42,
+              height: 50,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
                 physics: const BouncingScrollPhysics(),
                 itemCount: _domains.length,
                 separatorBuilder: (_, __) => const SizedBox(width: RetroTheme.spacingSm),
@@ -281,8 +285,8 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
             const SizedBox(height: RetroTheme.spacingXl),
 
             RetroButton(
-              text: 'START RESEARCH',
-              icon: const Icon(LucideIcons.microscope, size: 18),
+              text: _schedule == 'manual' ? 'CREATE & RUN' : 'CREATE TOPIC',
+              icon: Icon(_schedule == 'manual' ? LucideIcons.play : LucideIcons.plus, size: 18),
               onPressed: _submit,
               isLoading: _isSubmitting,
               color: RetroTheme.lavender,

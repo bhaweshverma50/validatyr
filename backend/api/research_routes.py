@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import logging
 import os
+import re
 
 from services.research_models import ResearchTopic, ResearchReport, ResearchJobStatus
 from services.research_db import (
@@ -46,6 +47,30 @@ def _run_pipeline_safe(domain: str, keywords: list, interests: list, topic_id: s
 
 _VALID_DOMAINS = Literal["apps", "saas", "hardware", "fintech", "general"]
 
+# Regex patterns for valid schedule_cron strings
+_SCHEDULE_RE = re.compile(
+    r"^(daily(\|\d{1,2}:\d{2})?)$"          # daily  or  daily|HH:MM
+    r"|^(weekly(\|[1-7](\|\d{1,2}:\d{2})?)?)$"  # weekly  or  weekly|D  or  weekly|D|HH:MM
+)
+
+
+def _validate_schedule_cron(v: str | None) -> str | None:
+    """Validate schedule_cron format. Returns the value or raises ValueError."""
+    if v is not None:
+        if not _SCHEDULE_RE.match(v):
+            raise ValueError(
+                f"Invalid schedule_cron format: '{v}'. "
+                "Expected: 'daily', 'daily|HH:MM', 'weekly', 'weekly|1-7', or 'weekly|1-7|HH:MM'"
+            )
+        # Validate HH:MM ranges
+        parts = v.split("|")
+        for part in parts[1:]:
+            if ":" in part:
+                h, m = part.split(":")
+                if not (0 <= int(h) <= 23 and 0 <= int(m) <= 59):
+                    raise ValueError(f"Invalid time in schedule: '{part}'. Hours must be 0-23, minutes 0-59.")
+    return v
+
 
 class _TimezoneMixin(BaseModel):
     timezone: Optional[str] = None
@@ -69,6 +94,11 @@ class CreateTopicRequest(_TimezoneMixin):
     schedule_cron: Optional[str] = None
     start_immediately: bool = True
 
+    @field_validator("schedule_cron")
+    @classmethod
+    def validate_schedule(cls, v: str | None) -> str | None:
+        return _validate_schedule_cron(v)
+
 
 class UpdateTopicRequest(_TimezoneMixin):
     domain: Optional[str] = None
@@ -76,6 +106,11 @@ class UpdateTopicRequest(_TimezoneMixin):
     interests: Optional[List[str]] = None
     schedule_cron: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @field_validator("schedule_cron")
+    @classmethod
+    def validate_schedule(cls, v: str | None) -> str | None:
+        return _validate_schedule_cron(v)
 
 
 class StartResearchRequest(BaseModel):
@@ -155,14 +190,23 @@ async def remove_topic(topic_id: str):
 
 
 @router.post("/cron-trigger")
-async def cron_trigger(x_cloudscheduler: Optional[str] = Header(None, alias="X-CloudScheduler")):
+async def cron_trigger(
+    x_cloudscheduler: Optional[str] = Header(None, alias="X-CloudScheduler"),
+    x_cron_secret: Optional[str] = Header(None, alias="X-Cron-Secret"),
+):
     """Called by Cloud Scheduler to run all due scheduled research topics.
 
     Cloud Scheduler hits this every 15 minutes. We check which topics
     have a schedule that falls within a ±8 minute window of "now" in the
     user's configured timezone, then run them. A cooldown check prevents
     double-runs (23h for daily, 6 days for weekly).
+
+    Requires X-Cron-Secret header matching CRON_TRIGGER_SECRET env var
+    when the env var is set.
     """
+    expected_secret = os.getenv("CRON_TRIGGER_SECRET")
+    if expected_secret and x_cron_secret != expected_secret:
+        raise HTTPException(status_code=403, detail="Invalid or missing X-Cron-Secret header")
     from services.research_db import get_latest_job_for_topic
     from zoneinfo import ZoneInfo
     from datetime import datetime, timezone, timedelta
@@ -269,6 +313,26 @@ async def get_job_status(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_research_job(job_id: str):
+    """Cancel a running research job, stopping it before the next expensive step."""
+    from services.research_db import update_research_job
+    from services.research_pipeline import research_cancel_events
+
+    job = get_research_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.get("status") not in ("pending", "running"):
+        return {"status": job.get("status"), "message": "Job is not running"}
+
+    # Signal the background thread to stop
+    ev = research_cancel_events.get(job_id)
+    if ev:
+        ev.set()
+    update_research_job(job_id, {"status": "cancelled"})
+    return {"status": "cancelled", "job_id": job_id}
 
 
 @router.get("/topics/{topic_id}/latest-job")

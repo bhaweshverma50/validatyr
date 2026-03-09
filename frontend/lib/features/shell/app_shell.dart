@@ -41,6 +41,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       const HomeScreen(),
       const ResearchDashboardScreen(),
       HistoryScreen(key: _historyKey),
+      const NotificationCenterScreen(),
       const SettingsScreen(),
     ];
   }
@@ -60,19 +61,6 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _onTabTapped(int i) {
-    if (i == 3) {
-      // Alerts tab — push notification center instead of switching screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
-      );
-      return;
-    }
-    if (i == 4) {
-      // Settings tab — screen index 3
-      setState(() => _currentIndex = 3);
-      return;
-    }
     setState(() => _currentIndex = i);
     if (i == 2) {
       _historyKey.currentState?.refresh();
@@ -87,6 +75,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
+        clipBehavior: Clip.none,
         decoration: BoxDecoration(
           color: colors.surface,
           border: Border(
@@ -94,8 +83,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ),
         ),
         padding: EdgeInsets.only(
+          left: 10,
+          right: 10,
           top: 6,
-          bottom: bottomPadding > 0 ? bottomPadding : 6,
+          bottom: (bottomPadding > 0 ? bottomPadding : 6) + 4,
         ),
         child: StreamBuilder<int>(
           stream: NotificationService.instance.unreadCountStream,
@@ -106,9 +97,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
               children: [
                 ...List.generate(_tabs.length, (i) {
                   final tab = _tabs[i];
-                  // Map visual index to screen index for active check
-                  final isActive = (i < 3 && _currentIndex == i) ||
-                      (i == 4 && _currentIndex == 3);
+                  final isActive = _currentIndex == i;
                   final isAlerts = i == 3;
                   return Expanded(
                     child: GestureDetector(

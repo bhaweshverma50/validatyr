@@ -20,15 +20,22 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
   bool _isLoading = true;
   bool _isRefreshing = false;
   String? _errorMessage;
+  Map<String, dynamic>? _latestJob;
 
   String get _topicId => widget.topic['id']?.toString() ?? '';
   String get _domain => widget.topic['domain']?.toString() ?? 'general';
   List<String> get _keywords => List<String>.from(widget.topic['keywords'] ?? []);
 
+  bool get _isJobRunning {
+    final status = _latestJob?['status'] as String?;
+    return status == 'running' || status == 'pending';
+  }
+
   @override
   void initState() {
     super.initState();
     _loadReports();
+    _loadLatestJob();
   }
 
   Future<void> _loadReports() async {
@@ -40,6 +47,13 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
     }
   }
 
+  Future<void> _loadLatestJob() async {
+    try {
+      final job = await ResearchApiService.getLatestJob(_topicId);
+      if (mounted) setState(() => _latestJob = job);
+    } catch (_) {}
+  }
+
   Future<void> _triggerResearch() async {
     setState(() => _isRefreshing = true);
     try {
@@ -48,6 +62,7 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Research started! Check back soon for results.')),
         );
+        _loadLatestJob();
       }
     } catch (e) {
       if (mounted) {
@@ -55,6 +70,69 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
       }
     }
     if (mounted) setState(() => _isRefreshing = false);
+  }
+
+  Future<void> _cancelJob() async {
+    final jobId = _latestJob?['id']?.toString();
+    if (jobId == null) return;
+    try {
+      await ResearchApiService.cancelJob(jobId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Research job cancelled.')),
+        );
+        _loadLatestJob();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Cancel failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _deleteTopic() async {
+    final colors = RetroColors.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: colors.border, width: 3),
+        ),
+        title: Text('Delete Topic', style: TextStyle(fontWeight: FontWeight.w900, color: colors.text)),
+        content: Text(
+          'Delete this topic and all its reports?',
+          style: TextStyle(color: colors.text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: TextStyle(fontWeight: FontWeight.w700, color: colors.textMuted)),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              backgroundColor: RetroTheme.pink,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(6),
+                side: BorderSide(color: colors.border, width: 2),
+              ),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ResearchApiService.deleteTopic(_topicId);
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      }
+    }
   }
 
   @override
@@ -84,11 +162,25 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
           ],
         ),
         actions: [
+          // Stop running job
+          if (_isJobRunning)
+            IconButton(
+              icon: const Icon(LucideIcons.square, size: 20),
+              tooltip: 'Stop research',
+              onPressed: _cancelJob,
+            ),
+          // Run research
           IconButton(
             icon: _isRefreshing
                 ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: colors.text))
                 : const Icon(LucideIcons.refreshCw),
             onPressed: _isRefreshing ? null : _triggerResearch,
+          ),
+          // Delete topic
+          IconButton(
+            icon: const Icon(LucideIcons.trash2, size: 20),
+            tooltip: 'Delete topic',
+            onPressed: _deleteTopic,
           ),
         ],
       ),
@@ -131,7 +223,7 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 240),
               child: RetroButton(
-                text: 'RUN RESEARCH NOW',
+                text: 'RUN NOW',
                 icon: const Icon(LucideIcons.play, size: 16),
                 onPressed: _triggerResearch,
                 isLoading: _isRefreshing,

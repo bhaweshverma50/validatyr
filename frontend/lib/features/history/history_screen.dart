@@ -56,9 +56,15 @@ class HistoryScreenState extends State<HistoryScreen> {
       ]);
       if (mounted) {
         final runningJobs = results[0];
+        // Filter out any items the user has already deleted locally
+        // (prevents auto-refresh from resurrecting them before Supabase propagates)
+        var items = results[1];
+        if (_deletedIds.isNotEmpty) {
+          items = items.where((i) => !_deletedIds.contains(i['id'])).toList();
+        }
         setState(() {
           _runningJobs = runningJobs;
-          _items = results[1];
+          _items = items;
           _isLoading = false;
           _errorMessage = null;
         });
@@ -140,6 +146,10 @@ class HistoryScreenState extends State<HistoryScreen> {
     return result ?? false;
   }
 
+  /// IDs that have been deleted locally — prevents auto-refresh from
+  /// showing them again before Supabase propagates the delete.
+  final Set<dynamic> _deletedIds = {};
+
   Future<void> _delete(dynamic id) async {
     if (!await _confirm(
       title: 'Delete Validation',
@@ -148,9 +158,13 @@ class HistoryScreenState extends State<HistoryScreen> {
       return;
     }
     try {
+      _deletedIds.add(id);
       await SupabaseService.delete(id);
-      setState(() => _items.removeWhere((i) => i['id'] == id));
+      if (mounted) {
+        setState(() => _items.removeWhere((i) => i['id'] == id));
+      }
     } catch (e) {
+      _deletedIds.remove(id);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -167,13 +181,27 @@ class HistoryScreenState extends State<HistoryScreen> {
       return;
     }
     try {
-      await SupabaseService.deleteAll();
-      setState(() => _items.clear());
+      // Stop auto-refresh immediately so it doesn't re-fetch deleted rows
+      _autoRefreshTimer?.cancel();
+      _autoRefreshTimer = null;
+      // Mark all current IDs as deleted so any in-flight fetch won't resurrect them
+      _deletedIds.addAll(_items.map((i) => i['id']));
+      // Use backend endpoint (bypasses RLS) — clears both validations + validation_jobs
+      await ApiService.clearAllHistory();
+      if (mounted) {
+        setState(() {
+          _items.clear();
+          _runningJobs.clear();
+          _lastRunningSeenAt = null;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Delete all failed: $e')));
+        // Re-load to restore actual state on failure
+        _load();
       }
     }
   }
@@ -196,7 +224,10 @@ class HistoryScreenState extends State<HistoryScreen> {
         'Nov',
         'Dec',
       ];
-      return '${m[dt.month - 1]} ${dt.day}, ${dt.year}';
+      final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final min = dt.minute.toString().padLeft(2, '0');
+      final amPm = dt.hour < 12 ? 'AM' : 'PM';
+      return '${m[dt.month - 1]} ${dt.day}, ${dt.year} · $hour:$min $amPm';
     } catch (_) {
       return '';
     }
@@ -431,6 +462,7 @@ class HistoryScreenState extends State<HistoryScreen> {
                     MaterialPageRoute(
                       builder: (_) => ResultsScreen(
                         result: Map<String, dynamic>.from(item),
+                        saveToHistory: false,
                       ),
                     ),
                   ),

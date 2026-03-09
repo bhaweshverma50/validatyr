@@ -15,6 +15,7 @@ import os
 import json
 import uuid
 import logging
+import threading
 from datetime import datetime, timezone
 
 from google import genai
@@ -36,6 +37,21 @@ from services.community_scraper import CommunityScraperService
 from services.db import send_notification
 
 logger = logging.getLogger(__name__)
+
+# Cancellation registry for research jobs: job_id → threading.Event
+research_cancel_events: dict[str, threading.Event] = {}
+
+
+class _ResearchCancelled(Exception):
+    """Raised when a research job is cancelled."""
+    pass
+
+
+def _check_research_cancelled(job_id: str) -> None:
+    """Raise _ResearchCancelled if this job's cancel event has been set."""
+    ev = research_cancel_events.get(job_id)
+    if ev and ev.is_set():
+        raise _ResearchCancelled(f"Research job {job_id} was cancelled")
 
 _DOMAIN_TO_CATEGORY = {
     "apps": "mobile_app",
@@ -61,9 +77,11 @@ def run_research_pipeline(
 
     job = create_research_job(topic_id)
     job_id = job.get("id", str(uuid.uuid4()))
+    research_cancel_events[job_id] = threading.Event()
 
     try:
         # Step 1: Community Scraping
+        _check_research_cancelled(job_id)
         update_research_job(job_id, {"status": "running", "current_step": "community_scraping", "progress_pct": 0})
         category = _DOMAIN_TO_CATEGORY.get(domain, "mobile_app")
         community_text = ""
@@ -81,21 +99,25 @@ def run_research_pipeline(
             logger.warning(f"Community scraping failed (continuing): {e}")
 
         # Step 2: Trend Scout Agent
+        _check_research_cancelled(job_id)
         update_research_job(job_id, {"current_step": "trend_scout", "status": "running", "progress_pct": 20})
         logger.info("Research Agent 1 (Trend Scout) starting...")
         scout_result = _run_trend_scout(client, domain, keywords, interests, community_text)
 
         # Step 3: Market Analyst Agent
+        _check_research_cancelled(job_id)
         update_research_job(job_id, {"current_step": "market_analyst", "progress_pct": 40})
         logger.info("Research Agent 2 (Market Analyst) starting...")
         analyst_result = _run_market_analyst(client, domain, keywords, scout_result)
 
         # Step 4: Idea Generator Agent
+        _check_research_cancelled(job_id)
         update_research_job(job_id, {"current_step": "idea_generator", "progress_pct": 60})
         logger.info("Research Agent 3 (Idea Generator) starting...")
         ideas_result = _run_idea_generator(client, domain, keywords, interests, scout_result, analyst_result)
 
         # Step 5: Compile Report
+        _check_research_cancelled(job_id)
         update_research_job(job_id, {"current_step": "compiling_report", "progress_pct": 80})
         report = _compile_report(client, domain, keywords, scout_result, analyst_result, ideas_result, topic_id, community_succeeded)
 
@@ -138,6 +160,17 @@ def run_research_pipeline(
         logger.info(f"Research pipeline completed. Report {report_id} with {len(report.ideas)} ideas.")
         return report
 
+    except _ResearchCancelled:
+        logger.info(f"Research pipeline cancelled for job {job_id}")
+        update_research_job(job_id, {
+            "status": "cancelled",
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        return ResearchReport(
+            id="cancelled", topic_id=topic_id,
+            executive_summary="Cancelled", market_overview="",
+            ideas=[], data_sources=[], generated_at=datetime.now(timezone.utc),
+        )
     except Exception as e:
         logger.error(f"Research pipeline failed: {e}", exc_info=True)
         update_research_job(job_id, {
@@ -146,6 +179,8 @@ def run_research_pipeline(
             "completed_at": datetime.now(timezone.utc).isoformat(),
         })
         raise
+    finally:
+        research_cancel_events.pop(job_id, None)
 
 
 def _run_trend_scout(

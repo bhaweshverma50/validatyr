@@ -178,6 +178,26 @@ def delete_push_token(token: str) -> None:
         logger.warning(f"Failed to delete push token: {e}")
 
 
+def delete_all_validations() -> int:
+    """Delete all rows from validations and validation_jobs tables. Returns total deleted."""
+    supabase = get_supabase()
+    if not supabase:
+        logger.info("[MOCKED] delete_all_validations")
+        return 0
+    deleted = 0
+    try:
+        resp = supabase.table("validation_jobs").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        deleted += len(resp.data or [])
+    except Exception as e:
+        logger.warning(f"Failed to delete validation_jobs: {e}")
+    try:
+        resp = supabase.table("validations").delete().gt("id", 0).execute()
+        deleted += len(resp.data or [])
+    except Exception as e:
+        logger.warning(f"Failed to delete validations: {e}")
+    return deleted
+
+
 def list_push_tokens(platforms: list[str] | None = None) -> list[dict]:
     supabase = get_supabase()
     if not supabase:

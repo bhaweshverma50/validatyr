@@ -104,4 +104,18 @@ class ResearchApiService {
     if (response.statusCode != 200) return null;
     return jsonDecode(response.body);
   }
+
+  static Future<void> cancelJob(String jobId) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/jobs/$jobId/cancel'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to cancel job: ${response.body}');
+    }
+  }
+
+  static Future<void> toggleTopicActive(String topicId, bool isActive) async {
+    await updateTopic(topicId, {'is_active': isActive});
+  }
 }

@@ -417,6 +417,15 @@ class NotificationService {
     }
   }
 
+  Future<void> deleteNotification(dynamic id) async {
+    try {
+      final client = Supabase.instance.client;
+      await client.from('notifications').delete().eq('id', id);
+    } catch (e) {
+      debugPrint('NotificationService: deleteNotification failed: $e');
+    }
+  }
+
   Future<void> clearAll() async {
     try {
       final client = Supabase.instance.client;

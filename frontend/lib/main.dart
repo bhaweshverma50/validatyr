@@ -19,22 +19,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: '.env');
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
+  // Only load dotenv + prefs synchronously (both are fast, <50ms)
+  await dotenv.load(fileName: '.env');
   final prefs = await SharedPreferences.getInstance();
 
-  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
-  final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
-  if (supabaseUrl.isNotEmpty && supabaseKey.isNotEmpty) {
-    try {
-      await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
-    } catch (_) {}
-  }
-  try {
-    await NotificationService.instance.init(appNavigatorKey);
-  } catch (_) {}
+  // Show the app immediately — no white screen
   runApp(
     ProviderScope(
       overrides: [
@@ -43,6 +33,37 @@ Future<void> main() async {
       child: const IdeaValidatorApp(),
     ),
   );
+
+  // Heavy init runs in background after first frame is painted
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _initServicesInBackground();
+  });
+}
+
+/// Initializes Firebase, Supabase, and notifications without blocking the UI.
+Future<void> _initServicesInBackground() async {
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint('Firebase init failed: $e');
+  }
+
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+  final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  if (supabaseUrl.isNotEmpty && supabaseKey.isNotEmpty) {
+    try {
+      await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+    } catch (e) {
+      debugPrint('Supabase init failed: $e');
+    }
+  }
+
+  try {
+    await NotificationService.instance.init(appNavigatorKey);
+  } catch (e) {
+    debugPrint('NotificationService init failed: $e');
+  }
 }
 
 class IdeaValidatorApp extends ConsumerWidget {

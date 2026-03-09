@@ -95,24 +95,42 @@ def _parse_schedule(schedule: str, tz: ZoneInfo) -> CronTrigger | None:
       - "weekly|DAY_NUM|HH:MM" → every week on DAY (1=Mon..7=Sun) at HH:MM
       - "daily" (legacy)        → every day at 06:00
       - "weekly" (legacy)       → every Monday at 06:00
+
+    Returns None for unrecognised formats. Never raises.
     """
-    parts = schedule.split("|")
-    kind = parts[0]
+    try:
+        parts = schedule.split("|")
+        kind = parts[0]
 
-    if kind == "daily":
-        if len(parts) >= 2:
-            h, m = parts[1].split(":")
-            return CronTrigger(hour=int(h), minute=int(m), timezone=tz)
-        return CronTrigger(hour=6, minute=0, timezone=tz)
+        if kind == "daily":
+            if len(parts) >= 2:
+                h, m = parts[1].split(":")
+                h, m = int(h), int(m)
+                if not (0 <= h <= 23 and 0 <= m <= 59):
+                    logger.warning("Invalid time in schedule '%s', falling back to 06:00", schedule)
+                    h, m = 6, 0
+                return CronTrigger(hour=h, minute=m, timezone=tz)
+            return CronTrigger(hour=6, minute=0, timezone=tz)
 
-    if kind == "weekly":
-        if len(parts) >= 3:
-            dow = _DOW_MAP.get(int(parts[1]), "mon")
-            h, m = parts[2].split(":")
-            return CronTrigger(day_of_week=dow, hour=int(h), minute=int(m), timezone=tz)
-        return CronTrigger(day_of_week="mon", hour=6, minute=0, timezone=tz)
+        if kind == "weekly":
+            if len(parts) >= 3:
+                dow = _DOW_MAP.get(int(parts[1]), "mon")
+                h, m = parts[2].split(":")
+                h, m = int(h), int(m)
+                if not (0 <= h <= 23 and 0 <= m <= 59):
+                    logger.warning("Invalid time in schedule '%s', falling back to 06:00", schedule)
+                    h, m = 6, 0
+                return CronTrigger(day_of_week=dow, hour=h, minute=m, timezone=tz)
+            if len(parts) >= 2:
+                dow = _DOW_MAP.get(int(parts[1]), "mon")
+                return CronTrigger(day_of_week=dow, hour=6, minute=0, timezone=tz)
+            return CronTrigger(day_of_week="mon", hour=6, minute=0, timezone=tz)
 
-    return None
+        logger.warning("Unknown schedule kind '%s' in '%s'", kind, schedule)
+        return None
+    except Exception as e:
+        logger.error("Failed to parse schedule '%s': %s", schedule, e)
+        return None
 
 
 def _add_topic_job(topic: dict) -> None:
