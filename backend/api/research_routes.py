@@ -151,15 +151,13 @@ async def cron_trigger(x_cloudscheduler: Optional[str] = Header(None, alias="X-C
     double-runs (23h for daily, 6 days for weekly).
     """
     from services.research_db import get_latest_job_for_topic
-    from services.research_scheduler import SCHEDULE_TZ
+    from zoneinfo import ZoneInfo
     from datetime import datetime, timezone, timedelta
 
     topics = list_research_topics()
     started = []
 
     now_utc = datetime.now(timezone.utc)
-    # Convert to the user-facing schedule timezone for comparison
-    now_local = now_utc.astimezone(SCHEDULE_TZ)
 
     for topic in topics:
         if not topic.get("is_active") or not topic.get("schedule_cron"):
@@ -169,6 +167,13 @@ async def cron_trigger(x_cloudscheduler: Optional[str] = Header(None, alias="X-C
         schedule = topic["schedule_cron"]
         parts = schedule.split("|")
         kind = parts[0]
+
+        # Resolve this topic's timezone
+        try:
+            topic_tz = ZoneInfo(topic.get("timezone") or "Asia/Kolkata")
+        except (KeyError, ValueError):
+            topic_tz = ZoneInfo("Asia/Kolkata")
+        now_local = now_utc.astimezone(topic_tz)
 
         # --- Cooldown: skip if already ran recently ---
         latest_job = get_latest_job_for_topic(topic_id)
