@@ -5,11 +5,15 @@ schedule_cron ('daily' or 'weekly') gets an APScheduler job that triggers
 the research pipeline on schedule.
 
 Runs in-process within the FastAPI server — no Redis/Celery needed.
+Disabled when CLOUD_SCHEDULER_ENABLED=true (Cloud Run deployments use the
+/cron-trigger endpoint instead).
 """
 
 import asyncio
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor
+from zoneinfo import ZoneInfo
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -23,15 +27,25 @@ logger = logging.getLogger(__name__)
 
 _scheduler: AsyncIOScheduler | None = None
 
+# Default timezone used when a topic does not carry its own timezone field.
+_DEFAULT_TZ = "Asia/Kolkata"
+
 
 def get_scheduler() -> AsyncIOScheduler:
     global _scheduler
     if _scheduler is None:
-        _scheduler = AsyncIOScheduler()
+        # The scheduler itself runs in UTC; individual jobs carry their own
+        # per-topic timezone via the CronTrigger passed to add_job().
+        _scheduler = AsyncIOScheduler(timezone="UTC")
     return _scheduler
 
 
 def start_scheduler() -> None:
+    # When Cloud Scheduler is handling cron, skip in-process scheduler.
+    if os.getenv("CLOUD_SCHEDULER_ENABLED", "").lower() == "true":
+        logger.info("CLOUD_SCHEDULER_ENABLED=true — skipping in-process APScheduler.")
+        return
+
     scheduler = get_scheduler()
     if scheduler.running:
         return
@@ -73,11 +87,11 @@ def unschedule_topic(topic_id: str) -> None:
 _DOW_MAP = {1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri", 6: "sat", 7: "sun"}
 
 
-def _parse_schedule(schedule: str) -> CronTrigger | None:
+def _parse_schedule(schedule: str, tz: ZoneInfo) -> CronTrigger | None:
     """Parse schedule string into a CronTrigger.
 
     Formats:
-      - "daily|HH:MM"          → every day at HH:MM
+      - "daily|HH:MM"          → every day at HH:MM (in tz)
       - "weekly|DAY_NUM|HH:MM" → every week on DAY (1=Mon..7=Sun) at HH:MM
       - "daily" (legacy)        → every day at 06:00
       - "weekly" (legacy)       → every Monday at 06:00
@@ -88,15 +102,15 @@ def _parse_schedule(schedule: str) -> CronTrigger | None:
     if kind == "daily":
         if len(parts) >= 2:
             h, m = parts[1].split(":")
-            return CronTrigger(hour=int(h), minute=int(m))
-        return CronTrigger(hour=6, minute=0)
+            return CronTrigger(hour=int(h), minute=int(m), timezone=tz)
+        return CronTrigger(hour=6, minute=0, timezone=tz)
 
     if kind == "weekly":
         if len(parts) >= 3:
             dow = _DOW_MAP.get(int(parts[1]), "mon")
             h, m = parts[2].split(":")
-            return CronTrigger(day_of_week=dow, hour=int(h), minute=int(m))
-        return CronTrigger(day_of_week="mon", hour=6, minute=0)
+            return CronTrigger(day_of_week=dow, hour=int(h), minute=int(m), timezone=tz)
+        return CronTrigger(day_of_week="mon", hour=6, minute=0, timezone=tz)
 
     return None
 
@@ -105,7 +119,8 @@ def _add_topic_job(topic: dict) -> None:
     scheduler = get_scheduler()
     topic_id = topic.get("id", "")
     schedule = topic.get("schedule_cron", "")
-    trigger = _parse_schedule(schedule)
+    tz = ZoneInfo(topic.get("timezone") or _DEFAULT_TZ)
+    trigger = _parse_schedule(schedule, tz)
     if trigger is None:
         return
     scheduler.add_job(
