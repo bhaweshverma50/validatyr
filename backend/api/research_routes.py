@@ -52,6 +52,7 @@ class CreateTopicRequest(BaseModel):
     keywords: List[str] = []
     interests: List[str] = []
     schedule_cron: Optional[str] = None
+    timezone: Optional[str] = None
     start_immediately: bool = True
 
 
@@ -60,6 +61,7 @@ class UpdateTopicRequest(BaseModel):
     keywords: Optional[List[str]] = None
     interests: Optional[List[str]] = None
     schedule_cron: Optional[str] = None
+    timezone: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -74,6 +76,7 @@ async def create_topic(request: CreateTopicRequest):
         "keywords": request.keywords,
         "interests": request.interests,
         "schedule_cron": request.schedule_cron,
+        "timezone": request.timezone or "Asia/Kolkata",
         "is_active": True,
     }
     result = save_research_topic(topic_data)
@@ -143,16 +146,20 @@ async def cron_trigger(x_cloudscheduler: Optional[str] = Header(None, alias="X-C
     """Called by Cloud Scheduler to run all due scheduled research topics.
 
     Cloud Scheduler hits this every 15 minutes. We check which topics
-    have a schedule and run them. The schedule matching is simple:
-    Cloud Scheduler calls frequently, we run all active scheduled topics.
-    To avoid double-runs, we check if a job ran recently (within 23h for daily,
-    6 days for weekly).
+    have a schedule that falls within a ±8 minute window of "now" in the
+    user's configured timezone, then run them. A cooldown check prevents
+    double-runs (23h for daily, 6 days for weekly).
     """
     from services.research_db import get_latest_job_for_topic
+    from services.research_scheduler import SCHEDULE_TZ
     from datetime import datetime, timezone, timedelta
 
     topics = list_research_topics()
     started = []
+
+    now_utc = datetime.now(timezone.utc)
+    # Convert to the user-facing schedule timezone for comparison
+    now_local = now_utc.astimezone(SCHEDULE_TZ)
 
     for topic in topics:
         if not topic.get("is_active") or not topic.get("schedule_cron"):
@@ -163,38 +170,41 @@ async def cron_trigger(x_cloudscheduler: Optional[str] = Header(None, alias="X-C
         parts = schedule.split("|")
         kind = parts[0]
 
-        # Check if already ran recently
+        # --- Cooldown: skip if already ran recently ---
         latest_job = get_latest_job_for_topic(topic_id)
         if latest_job:
-            job_created = latest_job.get("created_at", "")
+            job_created = latest_job.get("created_at", "") or latest_job.get("started_at", "")
             if job_created:
                 try:
                     created_dt = datetime.fromisoformat(job_created.replace("Z", "+00:00"))
-                    now = datetime.now(timezone.utc)
-                    if kind == "daily" and (now - created_dt) < timedelta(hours=23):
+                    if kind == "daily" and (now_utc - created_dt) < timedelta(hours=23):
                         continue
-                    if kind == "weekly" and (now - created_dt) < timedelta(days=6):
+                    if kind == "weekly" and (now_utc - created_dt) < timedelta(days=6):
                         continue
                 except (ValueError, TypeError):
                     pass
 
-        # Check if the current time matches the schedule window (±30 min)
-        now = datetime.now(timezone.utc)
+        # --- Time-window match (±8 min — fits within the 15-min poll interval) ---
         should_run = False
 
         if kind == "daily":
             target_h, target_m = (int(x) for x in parts[1].split(":")) if len(parts) >= 2 else (6, 0)
-            diff_min = abs((now.hour * 60 + now.minute) - (target_h * 60 + target_m))
-            if diff_min <= 30 or diff_min >= (24 * 60 - 30):
+            diff_min = abs((now_local.hour * 60 + now_local.minute) - (target_h * 60 + target_m))
+            # Handle midnight wrap-around
+            if diff_min > 12 * 60:
+                diff_min = 24 * 60 - diff_min
+            if diff_min <= 8:
                 should_run = True
 
         elif kind == "weekly":
-            dow_map = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6}  # schedule 1=Mon → weekday() 0=Mon
+            dow_map = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6}
             target_dow = dow_map.get(int(parts[1]), 0) if len(parts) >= 2 else 0
             target_h, target_m = (int(x) for x in parts[2].split(":")) if len(parts) >= 3 else (6, 0)
-            if now.weekday() == target_dow:
-                diff_min = abs((now.hour * 60 + now.minute) - (target_h * 60 + target_m))
-                if diff_min <= 30 or diff_min >= (24 * 60 - 30):
+            if now_local.weekday() == target_dow:
+                diff_min = abs((now_local.hour * 60 + now_local.minute) - (target_h * 60 + target_m))
+                if diff_min > 12 * 60:
+                    diff_min = 24 * 60 - diff_min
+                if diff_min <= 8:
                     should_run = True
 
         if not should_run:
