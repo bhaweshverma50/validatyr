@@ -12,6 +12,7 @@ class ResearchTopic(BaseModel):
     keywords: List[str] = Field(default_factory=list, description="Search keywords")
     interests: List[str] = Field(default_factory=list, description="Focus areas or interests")
     schedule_cron: Optional[str] = Field(default=None, description="Schedule: 'daily', 'weekly', or None for manual")
+    timezone: str = Field(default="Asia/Kolkata", description="IANA timezone for schedule (e.g. Asia/Kolkata, US/Eastern)")
     is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
