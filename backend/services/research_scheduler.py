@@ -119,7 +119,10 @@ def _add_topic_job(topic: dict) -> None:
     scheduler = get_scheduler()
     topic_id = topic.get("id", "")
     schedule = topic.get("schedule_cron", "")
-    tz = ZoneInfo(topic.get("timezone") or _DEFAULT_TZ)
+    try:
+        tz = ZoneInfo(topic.get("timezone") or _DEFAULT_TZ)
+    except (KeyError, ValueError):
+        tz = ZoneInfo(_DEFAULT_TZ)
     trigger = _parse_schedule(schedule, tz)
     if trigger is None:
         return

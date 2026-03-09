@@ -1,7 +1,7 @@
 """API routes for the research feature."""
 
 from fastapi import APIRouter, HTTPException, Header
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Literal, Optional
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
@@ -47,21 +47,34 @@ def _run_pipeline_safe(domain: str, keywords: list, interests: list, topic_id: s
 _VALID_DOMAINS = Literal["apps", "saas", "hardware", "fintech", "general"]
 
 
-class CreateTopicRequest(BaseModel):
+class _TimezoneMixin(BaseModel):
+    timezone: Optional[str] = None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, v: str | None) -> str | None:
+        if v is not None:
+            from zoneinfo import ZoneInfo
+            try:
+                ZoneInfo(v)
+            except (KeyError, ValueError):
+                raise ValueError(f"Invalid IANA timezone: {v}")
+        return v
+
+
+class CreateTopicRequest(_TimezoneMixin):
     domain: _VALID_DOMAINS
     keywords: List[str] = []
     interests: List[str] = []
     schedule_cron: Optional[str] = None
-    timezone: Optional[str] = None
     start_immediately: bool = True
 
 
-class UpdateTopicRequest(BaseModel):
+class UpdateTopicRequest(_TimezoneMixin):
     domain: Optional[str] = None
     keywords: Optional[List[str]] = None
     interests: Optional[List[str]] = None
     schedule_cron: Optional[str] = None
-    timezone: Optional[str] = None
     is_active: Optional[bool] = None
 
 
@@ -122,7 +135,7 @@ async def update_topic(topic_id: str, request: UpdateTopicRequest):
 
     result = update_research_topic(topic_id, updates)
 
-    if "schedule_cron" in updates or "is_active" in updates:
+    if "schedule_cron" in updates or "is_active" in updates or "timezone" in updates:
         merged = {**existing, **updates}
         if merged.get("is_active") and merged.get("schedule_cron"):
             schedule_topic(merged)
