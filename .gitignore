@@ -28,6 +28,13 @@ frontend/.metadata
 frontend/.packages
 frontend/pubspec.lock
 
+# === Firebase config (contains API keys — generate locally) ===
+frontend/lib/firebase_options.dart
+frontend/android/app/google-services.json
+frontend/ios/Runner/GoogleService-Info.plist
+frontend/macos/Runner/GoogleService-Info.plist
+frontend/firebase.json
+
 # === Claude ===
 .claude/
 CLAUDE.md
