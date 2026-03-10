@@ -23,7 +23,7 @@ class ProfileScreen extends ConsumerWidget {
     final avatarUrl = user?.userMetadata?['avatar_url'] as String? ??
         user?.userMetadata?['picture'] as String? ??
         '';
-    final provider = user?.appMetadata?['provider'] as String? ?? 'email';
+    final provider = user?.appMetadata['provider'] as String? ?? 'email';
 
     final displayInitial = fullName.isNotEmpty
         ? fullName[0].toUpperCase()
