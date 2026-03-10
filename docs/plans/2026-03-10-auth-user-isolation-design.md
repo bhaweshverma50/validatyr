@@ -5,7 +5,7 @@
 
 ## Decision
 
-Supabase Auth with RLS-enforced per-user data isolation. Email+password and Google/Apple social login. Auth wall (login required before any access).
+Supabase Auth with RLS-enforced per-user data isolation. Email+password and Google social login. Auth wall (login required before any access).
 
 ## Platforms
 
@@ -63,7 +63,7 @@ Cron endpoint (`POST /api/v1/research/cron-trigger`) continues using service rol
 
 ### New Screens
 
-- `LoginScreen` — email+password form, Google/Apple social buttons, link to sign-up
+- `LoginScreen` — email+password form, Google social button, link to sign-up
 - `SignUpScreen` — registration form with social buttons
 - `ProfileScreen` — name/email/avatar, logout button, delete account button
 
@@ -80,8 +80,7 @@ All backend requests include `Authorization: Bearer <access_token>`. On 401, red
 ### Social Login
 
 - Google: `google_sign_in` package -> `Supabase.auth.signInWithIdToken()`
-- Apple: `sign_in_with_apple` package -> `Supabase.auth.signInWithApple()`
-- Both work on iOS, Android, macOS
+- Works on iOS, Android, macOS
 
 ### UI Style
 
@@ -100,15 +99,10 @@ Account deletion cascades to all user data via `ON DELETE CASCADE` foreign key.
 3. **Supabase Auth Providers:** Dashboard > Authentication > Providers:
    - Email (enabled by default)
    - Google: paste Web Client ID + Client Secret from Google Cloud Console
-   - Apple: paste Service ID, Team ID, Key ID, Private Key from Apple Developer
 4. **Google Cloud Console:** Create OAuth 2.0 client IDs for iOS, Android, and macOS platforms
-5. **Apple Developer:**
-   - Register App ID with "Sign in with Apple" capability
-   - Create a Service ID for Supabase callback
-6. **iOS:** Add Google Sign-In reversed client ID URL scheme to `ios/Runner/Info.plist`
-7. **macOS:** Add "Sign in with Apple" capability in Xcode + entitlements file
-8. **Android:** Add SHA-1 fingerprint to Firebase/Google Cloud project
-9. **Flutter build args:** Pass Google client IDs via `--dart-define`:
+5. **iOS:** Add Google Sign-In reversed client ID URL scheme to `ios/Runner/Info.plist`
+6. **Android:** Add SHA-1 fingerprint to Firebase/Google Cloud project
+7. **Flutter build args:** Pass Google client IDs via `--dart-define`:
    ```
    flutter run --dart-define=GOOGLE_WEB_CLIENT_ID=xxx --dart-define=GOOGLE_IOS_CLIENT_ID=yyy
    ```

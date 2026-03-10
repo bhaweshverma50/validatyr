@@ -187,8 +187,6 @@ class ProfileScreen extends ConsumerWidget {
     switch (provider) {
       case 'google':
         return RetroTheme.blue;
-      case 'apple':
-        return RetroTheme.lavender;
       default:
         return RetroTheme.yellow;
     }

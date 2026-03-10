@@ -1,10 +1,5 @@
-import 'dart:convert';
-import 'dart:math';
-
-import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Exposes the current Supabase auth state as a stream.
@@ -73,29 +68,6 @@ class AuthService {
     );
   }
 
-  /// Apple Sign-In -> Supabase auth.
-  static Future<AuthResponse> signInWithApple() async {
-    final rawNonce = _generateNonce();
-    final hashedNonce = sha256.convert(utf8.encode(rawNonce)).toString();
-
-    final credential = await SignInWithApple.getAppleIDCredential(
-      scopes: [
-        AppleIDAuthorizationScopes.email,
-        AppleIDAuthorizationScopes.fullName,
-      ],
-      nonce: hashedNonce,
-    );
-
-    final idToken = credential.identityToken;
-    if (idToken == null) throw Exception('No ID token from Apple');
-
-    return await _client.auth.signInWithIdToken(
-      provider: OAuthProvider.apple,
-      idToken: idToken,
-      nonce: rawNonce,
-    );
-  }
-
   /// Sign out.
   static Future<void> signOut() async {
     await _client.auth.signOut();
@@ -104,12 +76,5 @@ class AuthService {
   /// Delete account (signs out after).
   static Future<void> deleteAccount() async {
     await _client.auth.signOut();
-  }
-
-  /// Generate a random nonce for Apple Sign-In.
-  static String _generateNonce([int length = 32]) {
-    const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
-    final random = Random.secure();
-    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
   }
 }

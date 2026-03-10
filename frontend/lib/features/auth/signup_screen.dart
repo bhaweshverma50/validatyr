@@ -22,7 +22,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   bool _isLoading = false;
   bool _isGoogleLoading = false;
-  bool _isAppleLoading = false;
   String? _error;
   bool _showSuccess = false;
 
@@ -67,20 +66,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       setState(() => _error = e.toString());
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
-    }
-  }
-
-  Future<void> _handleAppleSignIn() async {
-    setState(() {
-      _isAppleLoading = true;
-      _error = null;
-    });
-    try {
-      await AuthService.signInWithApple();
-    } catch (e) {
-      setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _isAppleLoading = false);
     }
   }
 
@@ -238,14 +223,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     color: RetroTheme.blue,
                     isLoading: _isGoogleLoading,
                     icon: const Icon(LucideIcons.chrome),
-                  ),
-                  const SizedBox(height: RetroTheme.spacingMd),
-                  RetroButton(
-                    text: 'Continue with Apple',
-                    onPressed: _handleAppleSignIn,
-                    color: colors.surface,
-                    isLoading: _isAppleLoading,
-                    icon: const Icon(LucideIcons.apple),
                   ),
                 ],
               ),
