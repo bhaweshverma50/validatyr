@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from typing import List, Optional, AsyncGenerator
 from sse_starlette.sse import EventSourceResponse
@@ -15,6 +15,7 @@ from services.ai_analyzer import (
 from services.discovery import discover_competitors_and_scrape
 from services.community_scraper import CommunityScraperService
 from services.audio_processor import transcribe_audio
+from services.auth import get_current_user_id
 from services.db import (
     save_validation_result,
     send_notification,
@@ -91,7 +92,7 @@ class PushTokenDeleteRequest(BaseModel):
     token: str
 
 @router.post("/transcribe")
-async def transcribe_voice_memo(file: UploadFile = File(...)):
+async def transcribe_voice_memo(file: UploadFile = File(...), user_id: str = Depends(get_current_user_id)):
     if not file:
         raise HTTPException(status_code=400, detail="No audio file uploaded.")
 
@@ -112,18 +113,18 @@ async def transcribe_voice_memo(file: UploadFile = File(...)):
 
 
 @router.post("/push-tokens")
-async def register_push_token(request: PushTokenRequest):
-    upsert_push_token(request.token, request.platform)
+async def register_push_token(request: PushTokenRequest, user_id: str = Depends(get_current_user_id)):
+    upsert_push_token(user_id, request.token, request.platform)
     return {"status": "ok"}
 
 
 @router.post("/push-tokens/unregister")
-async def unregister_push_token(request: PushTokenDeleteRequest):
+async def unregister_push_token(request: PushTokenDeleteRequest, user_id: str = Depends(get_current_user_id)):
     delete_push_token(request.token)
     return {"status": "ok"}
 
 @router.post("/validate")
-async def validate_idea(request: ValidationRequest):
+async def validate_idea(request: ValidationRequest, user_id: str = Depends(get_current_user_id)):
     reviews = []
     competitors_meta = []
 
@@ -175,13 +176,14 @@ async def validate_idea(request: ValidationRequest):
         result = analyze_reviews_multi_agent(request.idea, reviews, competitors_meta, request.model_provider, category, community_data=community_text)
 
         # Save to database (will mock if Supabase credentials are not set)
-        save_resp = save_validation_result(request.idea, result.model_dump())
+        save_resp = save_validation_result(user_id, request.idea, result.model_dump())
         result_id = None
         if save_resp.get("status") == "success" and save_resp.get("data"):
             rows = save_resp["data"]
             if isinstance(rows, list) and rows:
                 result_id = rows[0].get("id")
         send_notification(
+            user_id,
             type="validation_complete",
             title="Validation Complete",
             body=f"'{request.idea[:50]}' scored {result.opportunity_score}/100",
@@ -207,7 +209,7 @@ def _check_cancelled(job_id: str) -> None:
         raise _Cancelled(f"Job {job_id} was cancelled")
 
 
-def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | None) -> None:
+def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | None, user_id: str) -> None:
     """Run the full validation pipeline in a background thread.
 
     Puts SSE-style dicts into *q*.  Runs independently of the SSE connection
@@ -224,7 +226,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         job_id = str(uuid.uuid4())
         # Register a cancel event for this job
         _cancel_events[job_id] = threading.Event()
-        create_validation_job(job_id, idea, user_category)
+        create_validation_job(user_id, job_id, idea, user_category)
         _put("job", {"job_id": job_id})
 
         def _update_job(step_number: int, agent: str, message: str, status: str = "running"):
@@ -381,12 +383,13 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
         # Save to DB — runs regardless of whether SSE client is still connected
         result_id = None
         try:
-            save_resp = save_validation_result(idea, final_result.model_dump())
+            save_resp = save_validation_result(user_id, idea, final_result.model_dump())
             if save_resp.get("status") == "success" and save_resp.get("data"):
                 rows = save_resp["data"]
                 if isinstance(rows, list) and rows:
                     result_id = rows[0].get("id")
             send_notification(
+                user_id,
                 type="validation_complete",
                 title="Validation Complete",
                 body=f"'{idea[:50]}' scored {opportunity_score}/100",
@@ -422,7 +425,7 @@ def _run_validation_pipeline(q: _queue.Queue, idea: str, user_category: str | No
 
 
 @router.post("/validate/stream")
-async def validate_idea_stream(request: ValidationRequest):
+async def validate_idea_stream(request: ValidationRequest, user_id: str = Depends(get_current_user_id)):
     """Streams SSE events for the full validation pipeline.
 
     The pipeline runs in a background thread so it completes and saves
@@ -431,7 +434,7 @@ async def validate_idea_stream(request: ValidationRequest):
     progress_q: _queue.Queue = _queue.Queue()
 
     # Fire-and-forget: pipeline runs independently of the SSE connection
-    _executor.submit(_run_validation_pipeline, progress_q, request.idea, request.category)
+    _executor.submit(_run_validation_pipeline, progress_q, request.idea, request.category, user_id)
 
     async def event_generator() -> AsyncGenerator[dict, None]:
         import time
@@ -460,15 +463,15 @@ async def validate_idea_stream(request: ValidationRequest):
 
 
 @router.get("/validation-jobs")
-async def list_validation_jobs():
+async def list_validation_jobs(user_id: str = Depends(get_current_user_id)):
     """List all active (pending/running) validation jobs."""
     from services.db import list_active_validation_jobs
-    jobs = list_active_validation_jobs()
+    jobs = list_active_validation_jobs(user_id)
     return {"jobs": jobs}
 
 
 @router.get("/validation-jobs/{job_id}")
-async def get_validation_job_status(job_id: str):
+async def get_validation_job_status(job_id: str, user_id: str = Depends(get_current_user_id)):
     """Get a single validation job's current status."""
     from services.db import get_validation_job
     job = get_validation_job(job_id)
@@ -478,7 +481,7 @@ async def get_validation_job_status(job_id: str):
 
 
 @router.post("/validation-jobs/{job_id}/cancel")
-async def cancel_validation_job(job_id: str):
+async def cancel_validation_job(job_id: str, user_id: str = Depends(get_current_user_id)):
     """Cancel a validation job, signalling the background pipeline to stop."""
     from services.db import get_validation_job
     job = get_validation_job(job_id)
@@ -493,8 +496,8 @@ async def cancel_validation_job(job_id: str):
 
 
 @router.delete("/history")
-async def clear_all_history():
+async def clear_all_history(user_id: str = Depends(get_current_user_id)):
     """Delete all validations and validation_jobs."""
     from services.db import delete_all_validations
-    deleted = delete_all_validations()
+    deleted = delete_all_validations(user_id)
     return {"deleted": deleted}
