@@ -18,13 +18,15 @@ BEGIN;
 -- ============================================================
 -- 1. TRUNCATE all existing data
 -- ============================================================
-TRUNCATE public.research_jobs;
-TRUNCATE public.research_reports;
-TRUNCATE public.research_topics;
-TRUNCATE public.validation_jobs;
-TRUNCATE public.validations RESTART IDENTITY;
-TRUNCATE public.notifications RESTART IDENTITY;
-TRUNCATE public.push_tokens;
+TRUNCATE
+  public.research_jobs,
+  public.research_reports,
+  public.research_topics,
+  public.validation_jobs,
+  public.validations,
+  public.notifications,
+  public.push_tokens
+  RESTART IDENTITY CASCADE;
 
 -- ============================================================
 -- 2. ADD user_id column to all 7 tables
