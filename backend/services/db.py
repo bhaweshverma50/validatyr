@@ -20,11 +20,12 @@ def get_supabase() -> Client:
         logger.error(f"Failed to initialize Supabase client: {e}")
         return None
 
-def save_validation_result(idea: str, result: dict) -> dict:
+def save_validation_result(user_id: str, idea: str, result: dict) -> dict:
     """Save the AI validation result to Supabase."""
     supabase = get_supabase()
     
     data_payload = {
+        "user_id": user_id,
         "idea": idea,
         "opportunity_score": result.get("opportunity_score", 0),
         "what_users_love": result.get("what_users_love", []),
@@ -48,7 +49,7 @@ def save_validation_result(idea: str, result: dict) -> dict:
     }
     
     if not supabase:
-        logger.info(f"[MOCKED DB SAVE] Validation data for '{idea}' would be saved to Supabase: {data_payload}")
+        logger.info(f"[MOCKED DB SAVE] Validation data for user '{user_id}', idea '{idea}' would be saved to Supabase: {data_payload}")
         return {"status": "mocked", "data": data_payload}
 
     try:
@@ -60,12 +61,12 @@ def save_validation_result(idea: str, result: dict) -> dict:
         logger.error(f"Error saving to Supabase: {e}")
         return {"status": "error", "message": str(e)}
 
-def send_notification(type: str, title: str, body: str, metadata: dict | None = None):
+def send_notification(user_id: str, type: str, title: str, body: str, metadata: dict | None = None):
     """Insert a notification row into Supabase (triggers Realtime for frontend)."""
     supabase = get_supabase()
     notification_metadata = metadata or {}
     if not supabase:
-        logger.info(f"[MOCKED] Notification: {type} — {title}")
+        logger.info(f"[MOCKED] Notification for user '{user_id}': {type} — {title}")
         send_push_notification(
             title=title,
             body=body,
@@ -74,6 +75,7 @@ def send_notification(type: str, title: str, body: str, metadata: dict | None = 
         return
     try:
         supabase.table("notifications").insert({
+            "user_id": user_id,
             "type": type,
             "title": title,
             "body": body,
@@ -89,14 +91,15 @@ def send_notification(type: str, title: str, body: str, metadata: dict | None = 
     )
 
 
-def create_validation_job(job_id: str, idea: str, category: str | None) -> None:
+def create_validation_job(user_id: str, job_id: str, idea: str, category: str | None) -> None:
     """Insert a new validation_jobs row with status=pending."""
     supabase = get_supabase()
     if not supabase:
-        logger.info(f"[MOCKED] create_validation_job {job_id}")
+        logger.info(f"[MOCKED] create_validation_job for user '{user_id}': {job_id}")
         return
     try:
         supabase.table("validation_jobs").insert({
+            "user_id": user_id,
             "id": job_id,
             "idea": idea,
             "category": category,
@@ -132,16 +135,17 @@ def get_validation_job(job_id: str) -> dict | None:
         return None
 
 
-def list_active_validation_jobs() -> list[dict]:
+def list_active_validation_jobs(user_id: str) -> list[dict]:
     """Fetch validation_jobs with status pending or running, newest first."""
     supabase = get_supabase()
     if not supabase:
-        logger.info("[MOCKED] list_active_validation_jobs")
+        logger.info(f"[MOCKED] list_active_validation_jobs for user '{user_id}'")
         return []
     try:
         resp = (
             supabase.table("validation_jobs")
             .select("*")
+            .eq("user_id", user_id)
             .in_("status", ["pending", "running"])
             .order("created_at", desc=True)
             .execute()
@@ -152,13 +156,14 @@ def list_active_validation_jobs() -> list[dict]:
         return []
 
 
-def upsert_push_token(token: str, platform: str) -> None:
+def upsert_push_token(user_id: str, token: str, platform: str) -> None:
     supabase = get_supabase()
     if not supabase:
-        logger.info(f"[MOCKED] upsert_push_token {platform}")
+        logger.info(f"[MOCKED] upsert_push_token for user '{user_id}': {platform}")
         return
     try:
         supabase.table("push_tokens").upsert({
+            "user_id": user_id,
             "token": token,
             "platform": platform,
             "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -178,33 +183,33 @@ def delete_push_token(token: str) -> None:
         logger.warning(f"Failed to delete push token: {e}")
 
 
-def delete_all_validations() -> int:
-    """Delete all rows from validations and validation_jobs tables. Returns total deleted."""
+def delete_all_validations(user_id: str) -> int:
+    """Delete all rows from validations and validation_jobs tables for a user. Returns total deleted."""
     supabase = get_supabase()
     if not supabase:
-        logger.info("[MOCKED] delete_all_validations")
+        logger.info(f"[MOCKED] delete_all_validations for user '{user_id}'")
         return 0
     deleted = 0
     try:
-        resp = supabase.table("validation_jobs").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        resp = supabase.table("validation_jobs").delete().eq("user_id", user_id).neq("id", "00000000-0000-0000-0000-000000000000").execute()
         deleted += len(resp.data or [])
     except Exception as e:
         logger.warning(f"Failed to delete validation_jobs: {e}")
     try:
-        resp = supabase.table("validations").delete().gt("id", 0).execute()
+        resp = supabase.table("validations").delete().eq("user_id", user_id).gt("id", 0).execute()
         deleted += len(resp.data or [])
     except Exception as e:
         logger.warning(f"Failed to delete validations: {e}")
     return deleted
 
 
-def list_push_tokens(platforms: list[str] | None = None) -> list[dict]:
+def list_push_tokens(user_id: str, platforms: list[str] | None = None) -> list[dict]:
     supabase = get_supabase()
     if not supabase:
-        logger.info("[MOCKED] list_push_tokens")
+        logger.info(f"[MOCKED] list_push_tokens for user '{user_id}'")
         return []
     try:
-        query = supabase.table("push_tokens").select("*")
+        query = supabase.table("push_tokens").select("*").eq("user_id", user_id)
         if platforms:
             query = query.in_("platform", platforms)
         resp = query.execute()
