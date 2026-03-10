@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 String get _baseUrl {
   final host = dotenv.env['BACKEND_HOST'] ?? '127.0.0.1';
@@ -9,6 +10,14 @@ String get _baseUrl {
   final scheme = isLocal ? 'http' : 'https';
   final port = isLocal ? ':8000' : '';
   return '$scheme://$host$port/api/v1';
+}
+
+Map<String, String> get _authHeaders {
+  final session = Supabase.instance.client.auth.currentSession;
+  return {
+    'Content-Type': 'application/json',
+    if (session != null) 'Authorization': 'Bearer ${session.accessToken}',
+  };
 }
 
 class SseEvent {
@@ -47,7 +56,7 @@ class ApiService {
 
       final request =
           http.Request('POST', Uri.parse('$_baseUrl/validate/stream'))
-            ..headers['Content-Type'] = 'application/json'
+            ..headers.addAll(_authHeaders)
             ..headers['Accept'] = 'text/event-stream'
             ..headers['Cache-Control'] = 'no-cache'
             ..body = jsonEncode(payload);
@@ -97,6 +106,10 @@ class ApiService {
     try {
       final uri = Uri.parse('$_baseUrl/transcribe');
       final request = http.MultipartRequest('POST', uri);
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session != null) {
+        request.headers['Authorization'] = 'Bearer ${session.accessToken}';
+      }
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
       final response = await request.send().timeout(
         const Duration(seconds: 30),
@@ -118,7 +131,7 @@ class ApiService {
   static Future<List<Map<String, dynamic>>> fetchActiveJobs() async {
     try {
       final resp = await http
-          .get(Uri.parse('$_baseUrl/validation-jobs'))
+          .get(Uri.parse('$_baseUrl/validation-jobs'), headers: _authHeaders)
           .timeout(const Duration(seconds: 5));
       if (resp.statusCode == 200) {
         final body = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -132,7 +145,7 @@ class ApiService {
   static Future<Map<String, dynamic>?> fetchValidationJob(String jobId) async {
     try {
       final resp = await http
-          .get(Uri.parse('$_baseUrl/validation-jobs/$jobId'))
+          .get(Uri.parse('$_baseUrl/validation-jobs/$jobId'), headers: _authHeaders)
           .timeout(const Duration(seconds: 5));
       if (resp.statusCode == 200) {
         return jsonDecode(resp.body) as Map<String, dynamic>;
@@ -145,7 +158,7 @@ class ApiService {
   static Future<void> cancelValidationJob(String jobId) async {
     try {
       await http
-          .post(Uri.parse('$_baseUrl/validation-jobs/$jobId/cancel'))
+          .post(Uri.parse('$_baseUrl/validation-jobs/$jobId/cancel'), headers: _authHeaders)
           .timeout(const Duration(seconds: 5));
     } catch (_) {}
   }
@@ -153,7 +166,7 @@ class ApiService {
   /// Delete all validations and validation_jobs via the backend.
   static Future<void> clearAllHistory() async {
     final resp = await http
-        .delete(Uri.parse('$_baseUrl/history'))
+        .delete(Uri.parse('$_baseUrl/history'), headers: _authHeaders)
         .timeout(const Duration(seconds: 10));
     if (resp.statusCode != 200) {
       throw Exception('Failed to clear history: ${resp.body}');
@@ -168,7 +181,7 @@ class ApiService {
     final resp = await http
         .post(
           uri,
-          headers: {'Content-Type': 'application/json'},
+          headers: _authHeaders,
           body: jsonEncode({'token': token, 'platform': platform}),
         )
         .timeout(
@@ -187,7 +200,7 @@ class ApiService {
     final resp = await http
         .post(
           uri,
-          headers: {'Content-Type': 'application/json'},
+          headers: _authHeaders,
           body: jsonEncode({'token': token}),
         )
         .timeout(
