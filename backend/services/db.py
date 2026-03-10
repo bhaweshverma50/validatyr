@@ -71,6 +71,7 @@ def send_notification(user_id: str, type: str, title: str, body: str, metadata: 
             title=title,
             body=body,
             data={"type": type, "route": "notification_center", **notification_metadata},
+            user_id=user_id,
         )
         return
     try:
@@ -88,6 +89,7 @@ def send_notification(user_id: str, type: str, title: str, body: str, metadata: 
         title=title,
         body=body,
         data={"type": type, "route": "notification_center", **notification_metadata},
+        user_id=user_id,
     )
 
 

@@ -52,13 +52,16 @@ def _get_firebase_app() -> firebase_admin.App | None:
         return None
 
 
-def _list_push_tokens() -> list[str]:
+def _list_push_tokens(user_id: str | None = None) -> list[str]:
     supabase = _get_supabase()
     if not supabase:
         return []
 
     try:
-        response = supabase.table("push_tokens").select("token").execute()
+        query = supabase.table("push_tokens").select("token")
+        if user_id:
+            query = query.eq("user_id", user_id)
+        response = query.execute()
         rows = response.data or []
         return [row["token"] for row in rows if row.get("token")]
     except Exception as exc:
@@ -88,12 +91,12 @@ def _stringify_data(data: dict[str, Any]) -> dict[str, str]:
     return stringified
 
 
-def send_push_notification(title: str, body: str, data: dict[str, Any] | None = None) -> int:
+def send_push_notification(title: str, body: str, data: dict[str, Any] | None = None, user_id: str | None = None) -> int:
     app = _get_firebase_app()
     if not app:
         return 0
 
-    tokens = _list_push_tokens()
+    tokens = _list_push_tokens(user_id)
     if not tokens:
         logger.info("No push tokens registered; skipping FCM send.")
         return 0
