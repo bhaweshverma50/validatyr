@@ -176,6 +176,12 @@ async def update_topic(topic_id: str, request: UpdateTopicRequest, user_id: str 
 
     result = update_research_topic(topic_id, updates)
 
+    logger.info(json.dumps({
+        "event": "topic_updated",
+        "topic_id": topic_id,
+        "fields_changed": list(updates.keys()),
+    }))
+
     if "schedule_cron" in updates or "is_active" in updates or "timezone" in updates:
         merged = {**existing, **updates}
         if merged.get("is_active") and merged.get("schedule_cron"):
