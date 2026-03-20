@@ -70,6 +70,15 @@ Describe your app idea. We scrape **real competitor reviews** from the Play Stor
 - **Bottom navigation** — 5-tab shell (Home, Research, History, Alerts, Settings) with retro active state indicators
 - **Responsive** — works on iOS, Android, macOS, and web
 
+### Authentication
+
+- **Email + password** — sign up, sign in, with inline validation and password requirements
+- **Google OAuth** — browser-based Supabase OAuth on desktop, native Google Sign-In on mobile
+- **Forgot password** — email existence check, reset link via Supabase, in-app password update screen
+- **Deep link handling** — custom URL scheme (`com.validatyr.frontend://`) for OAuth callbacks and password recovery
+- **ES256 JWT verification** — backend supports both legacy HS256 and new ECC P-256 (JWKS) tokens
+- **User isolation (RLS)** — all data scoped per-user via Supabase Row Level Security policies
+
 ### Deployment
 
 - **Docker** — production Dockerfile for the backend
@@ -204,7 +213,7 @@ Topic (domain + keywords + focus areas)
 ### Prerequisites
 
 - Python 3.12+
-- Flutter SDK 3.8+
+- Flutter SDK 3.41+
 - A [Google Gemini API key](https://aistudio.google.com/apikey)
 
 ### 1. Clone
@@ -325,6 +334,13 @@ validatyr/
 │   │   │   │   └── theme_provider.dart  # Riverpod theme mode state
 │   │   │   └── utils.dart               # Date/time formatters
 │   │   ├── features/
+│   │   │   ├── auth/
+│   │   │   │   ├── login_screen.dart             # Email + Google sign-in
+│   │   │   │   ├── signup_screen.dart            # Registration with validation
+│   │   │   │   ├── forgot_password_screen.dart   # Password reset request
+│   │   │   │   ├── reset_password_screen.dart    # Set new password (deep link)
+│   │   │   │   ├── email_confirmation_screen.dart
+│   │   │   │   └── profile_screen.dart           # User profile + sign out
 │   │   │   ├── shell/app_shell.dart         # 5-tab bottom nav
 │   │   │   ├── home/home_screen.dart        # Idea input + voice recording
 │   │   │   ├── loading/loading_screen.dart  # SSE streaming + poll fallback
@@ -363,7 +379,8 @@ validatyr/
 |---|---|---|
 | `GEMINI_API_KEY` | Yes | Google Gemini API key |
 | `SUPABASE_URL` | No | Supabase project URL (for persistence) |
-| `SUPABASE_KEY` | No | Supabase anon key |
+| `SUPABASE_KEY` | No | Supabase service_role key (backend uses this to bypass RLS) |
+| `SUPABASE_JWT_SECRET` | No | Legacy JWT secret (only needed for HS256 tokens; ES256 uses JWKS automatically) |
 | `PRODUCTHUNT_API_TOKEN` | No | ProductHunt API token (for research scraping) |
 | `BACKEND_HOST` | No | Backend IP for mobile device testing (frontend `.env`) |
 
