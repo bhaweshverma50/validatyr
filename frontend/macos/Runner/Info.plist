@@ -32,5 +32,19 @@
 	<string>Validatyr uses speech recognition to transcribe your app idea from voice input.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Validatyr needs microphone access to record your app idea via voice.</string>
+	<key>GIDClientID</key>
+	<string>872879151769-jkg9omceojlviruod1ukbq1g6t6s2r94.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.872879151769-jkg9omceojlviruod1ukbq1g6t6s2r94</string>
+				<string>com.validatyr.frontend</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -67,6 +67,7 @@ def run_research_pipeline(
     keywords: list[str],
     interests: list[str],
     topic_id: str = "",
+    user_id: str = "",
 ) -> ResearchReport:
     """Execute the full 3-agent research pipeline."""
     api_key = os.getenv("GEMINI_API_KEY")
@@ -75,7 +76,7 @@ def run_research_pipeline(
 
     client = genai.Client(api_key=api_key)
 
-    job = create_research_job(topic_id)
+    job = create_research_job(user_id, topic_id)
     job_id = job.get("id", str(uuid.uuid4()))
     research_cancel_events[job_id] = threading.Event()
 
@@ -121,11 +122,14 @@ def run_research_pipeline(
         update_research_job(job_id, {"current_step": "compiling_report", "progress_pct": 80})
         report = _compile_report(client, domain, keywords, scout_result, analyst_result, ideas_result, topic_id, community_succeeded)
 
-        saved = save_research_report(report.model_dump())
+        report_dict = report.model_dump()
+        report_dict["user_id"] = user_id
+        saved = save_research_report(report_dict)
         report_id = saved.get("data", {}).get("id", report.id)
 
         # Notify: research complete
         send_notification(
+            user_id=user_id,
             type="research_complete",
             title="Research Report Ready",
             body=f"New report for {domain} topic",
@@ -138,6 +142,7 @@ def run_research_pipeline(
             name = getattr(idea, "name", "Untitled")
             if score >= 75:
                 send_notification(
+                    user_id=user_id,
                     type="high_score_alert",
                     title=f"High-Score Idea: {name[:40]}",
                     body=f"Scored {score}/100 — tap to validate",

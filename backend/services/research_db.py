@@ -18,12 +18,13 @@ logger = logging.getLogger(__name__)
 # Research Topics
 # ---------------------------------------------------------------------------
 
-def save_research_topic(topic: dict) -> dict:
+def save_research_topic(user_id: str, topic: dict) -> dict:
     """Insert a new research topic. Returns the saved record."""
     supabase = get_supabase()
     topic_id = topic.get("id") or str(uuid.uuid4())
     payload = {
         "id": topic_id,
+        "user_id": user_id,
         "domain": topic.get("domain", "general"),
         "keywords": topic.get("keywords", []),
         "interests": topic.get("interests", []),
@@ -44,13 +45,20 @@ def save_research_topic(topic: dict) -> dict:
         return {"status": "error", "message": str(e)}
 
 
-def list_research_topics() -> List[dict]:
-    """Fetch all research topics, ordered by created_at desc."""
+def list_research_topics(user_id: str | None = None) -> List[dict]:
+    """Fetch research topics, ordered by created_at desc.
+
+    When *user_id* is provided the results are scoped to that user.
+    When ``None`` (e.g. cron context with service-role key), all topics are returned.
+    """
     supabase = get_supabase()
     if not supabase:
         return []
     try:
-        response = supabase.table("research_topics").select("*").order("created_at", desc=True).execute()
+        query = supabase.table("research_topics").select("*")
+        if user_id is not None:
+            query = query.eq("user_id", user_id)
+        response = query.order("created_at", desc=True).execute()
         return response.data or []
     except Exception as e:
         logger.error(f"Error fetching research topics: {e}")
@@ -107,6 +115,7 @@ def save_research_report(report: dict) -> dict:
     report_id = report.get("id") or str(uuid.uuid4())
     payload = {
         "id": report_id,
+        "user_id": report.get("user_id", ""),
         "topic_id": report.get("topic_id", ""),
         "executive_summary": report.get("executive_summary", ""),
         "market_overview": report.get("market_overview", ""),
@@ -163,12 +172,13 @@ def get_research_report(report_id: str) -> Optional[dict]:
 # Research Jobs
 # ---------------------------------------------------------------------------
 
-def create_research_job(topic_id: str) -> dict:
+def create_research_job(user_id: str, topic_id: str) -> dict:
     """Create a new research job record."""
     supabase = get_supabase()
     job_id = str(uuid.uuid4())
     payload = {
         "id": job_id,
+        "user_id": user_id,
         "topic_id": topic_id,
         "status": "pending",
         "progress_pct": 0,

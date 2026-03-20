@@ -1,6 +1,6 @@
 """API routes for the research feature."""
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, field_validator
 from typing import List, Literal, Optional
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +22,7 @@ from services.research_db import (
     get_latest_job_for_topic,
 )
 from services.research_pipeline import run_research_pipeline
+from services.auth import get_current_user_id
 from services.research_scheduler import schedule_topic, unschedule_topic
 from services.research_db import get_research_report as _get_report_db
 
@@ -32,7 +33,7 @@ _executor = ThreadPoolExecutor(max_workers=2)
 router = APIRouter()
 
 
-def _run_pipeline_safe(domain: str, keywords: list, interests: list, topic_id: str) -> None:
+def _run_pipeline_safe(domain: str, keywords: list, interests: list, topic_id: str, user_id: str = "") -> None:
     """Wrapper that catches and logs pipeline errors (for fire-and-forget calls)."""
     try:
         run_research_pipeline(
@@ -40,6 +41,7 @@ def _run_pipeline_safe(domain: str, keywords: list, interests: list, topic_id: s
             keywords=keywords,
             interests=interests,
             topic_id=topic_id,
+            user_id=user_id,
         )
     except Exception as e:
         logger.error(f"Background research pipeline failed for topic {topic_id}: {e}", exc_info=True)
@@ -118,7 +120,7 @@ class StartResearchRequest(BaseModel):
 
 
 @router.post("/topics")
-async def create_topic(request: CreateTopicRequest):
+async def create_topic(request: CreateTopicRequest, user_id: str = Depends(get_current_user_id)):
     topic_data = {
         "domain": request.domain,
         "keywords": request.keywords,
@@ -127,7 +129,7 @@ async def create_topic(request: CreateTopicRequest):
         "timezone": request.timezone or "Asia/Kolkata",
         "is_active": True,
     }
-    result = save_research_topic(topic_data)
+    result = save_research_topic(user_id, topic_data)
     if result.get("status") == "error":
         raise HTTPException(status_code=500, detail=result.get("message", "Failed to save topic"))
 
@@ -146,6 +148,7 @@ async def create_topic(request: CreateTopicRequest):
                 keywords=list(request.keywords),
                 interests=list(request.interests),
                 topic_id=topic_id,
+                user_id=user_id,
             ),
         )
 
@@ -153,13 +156,13 @@ async def create_topic(request: CreateTopicRequest):
 
 
 @router.get("/topics")
-async def get_topics():
-    topics = list_research_topics()
+async def get_topics(user_id: str = Depends(get_current_user_id)):
+    topics = list_research_topics(user_id)
     return {"topics": topics}
 
 
 @router.put("/topics/{topic_id}")
-async def update_topic(topic_id: str, request: UpdateTopicRequest):
+async def update_topic(topic_id: str, request: UpdateTopicRequest, user_id: str = Depends(get_current_user_id)):
     existing = get_research_topic(topic_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Topic not found")
@@ -181,7 +184,7 @@ async def update_topic(topic_id: str, request: UpdateTopicRequest):
 
 
 @router.delete("/topics/{topic_id}")
-async def remove_topic(topic_id: str):
+async def remove_topic(topic_id: str, user_id: str = Depends(get_current_user_id)):
     unschedule_topic(topic_id)
     success = delete_research_topic(topic_id)
     if not success:
@@ -211,7 +214,7 @@ async def cron_trigger(
     from zoneinfo import ZoneInfo
     from datetime import datetime, timezone, timedelta
 
-    topics = list_research_topics()
+    topics = list_research_topics(user_id=None)
     started = []
 
     now_utc = datetime.now(timezone.utc)
@@ -280,6 +283,7 @@ async def cron_trigger(
                 keywords=list(t.get("keywords", [])),
                 interests=list(t.get("interests", [])),
                 topic_id=tid,
+                user_id=t.get("user_id", ""),
             ),
         )
         started.append(topic_id)
@@ -288,7 +292,7 @@ async def cron_trigger(
 
 
 @router.post("/start")
-async def start_research(request: StartResearchRequest):
+async def start_research(request: StartResearchRequest, user_id: str = Depends(get_current_user_id)):
     topic = get_research_topic(request.topic_id)
     if not topic:
         raise HTTPException(status_code=404, detail="Topic not found")
@@ -301,6 +305,7 @@ async def start_research(request: StartResearchRequest):
             keywords=list(topic.get("keywords", [])),
             interests=list(topic.get("interests", [])),
             topic_id=request.topic_id,
+            user_id=user_id,
         ),
     )
 
@@ -308,7 +313,7 @@ async def start_research(request: StartResearchRequest):
 
 
 @router.get("/status/{job_id}")
-async def get_job_status(job_id: str):
+async def get_job_status(job_id: str, user_id: str = Depends(get_current_user_id)):
     job = get_research_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -316,7 +321,7 @@ async def get_job_status(job_id: str):
 
 
 @router.post("/jobs/{job_id}/cancel")
-async def cancel_research_job(job_id: str):
+async def cancel_research_job(job_id: str, user_id: str = Depends(get_current_user_id)):
     """Cancel a running research job, stopping it before the next expensive step."""
     from services.research_db import update_research_job
     from services.research_pipeline import research_cancel_events
@@ -336,19 +341,19 @@ async def cancel_research_job(job_id: str):
 
 
 @router.get("/topics/{topic_id}/latest-job")
-async def get_latest_job(topic_id: str):
+async def get_latest_job(topic_id: str, user_id: str = Depends(get_current_user_id)):
     job = get_latest_job_for_topic(topic_id)
     return {"job": job}
 
 
 @router.get("/reports")
-async def get_reports(topic_id: str, limit: int = 20, offset: int = 0):
+async def get_reports(topic_id: str, limit: int = 20, offset: int = 0, user_id: str = Depends(get_current_user_id)):
     reports = list_research_reports(topic_id, limit=limit, offset=offset)
     return {"reports": reports, "limit": limit, "offset": offset}
 
 
 @router.get("/reports/{report_id}")
-async def get_report(report_id: str):
+async def get_report(report_id: str, user_id: str = Depends(get_current_user_id)):
     report = get_research_report(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
@@ -361,7 +366,7 @@ class ValidateIdeaRequest(BaseModel):
 
 
 @router.post("/ideas/{idea_id}/validate")
-async def validate_research_idea(idea_id: str, request: ValidateIdeaRequest):
+async def validate_research_idea(idea_id: str, request: ValidateIdeaRequest, user_id: str = Depends(get_current_user_id)):
     """Deep-validate a generated research idea using the existing validation pipeline."""
     report = _get_report_db(request.report_id)
     if not report:
@@ -390,7 +395,7 @@ async def validate_research_idea(idea_id: str, request: ValidateIdeaRequest):
 # ---------------------------------------------------------------------------
 
 @router.get("/notifications")
-async def get_notifications(limit: int = 50, offset: int = 0):
+async def get_notifications(limit: int = 50, offset: int = 0, user_id: str = Depends(get_current_user_id)):
     """Fetch notifications, newest first."""
     from services.db import get_supabase
     supabase = get_supabase()
@@ -400,6 +405,7 @@ async def get_notifications(limit: int = 50, offset: int = 0):
         response = (
             supabase.table("notifications")
             .select("*")
+            .eq("user_id", user_id)
             .order("created_at", desc=True)
             .range(offset, offset + limit - 1)
             .execute()
@@ -411,7 +417,7 @@ async def get_notifications(limit: int = 50, offset: int = 0):
 
 
 @router.put("/notifications/{notification_id}/read")
-async def mark_notification_read(notification_id: int):
+async def mark_notification_read(notification_id: int, user_id: str = Depends(get_current_user_id)):
     from services.db import get_supabase
     supabase = get_supabase()
     if not supabase:
@@ -424,13 +430,13 @@ async def mark_notification_read(notification_id: int):
 
 
 @router.put("/notifications/read-all")
-async def mark_all_notifications_read():
+async def mark_all_notifications_read(user_id: str = Depends(get_current_user_id)):
     from services.db import get_supabase
     supabase = get_supabase()
     if not supabase:
         return {"status": "mocked"}
     try:
-        supabase.table("notifications").update({"is_read": True}).eq("is_read", False).execute()
+        supabase.table("notifications").update({"is_read": True}).eq("user_id", user_id).eq("is_read", False).execute()
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

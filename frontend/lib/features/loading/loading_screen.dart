@@ -232,7 +232,13 @@ class _LoadingScreenState extends State<LoadingScreen>
     }
     if (event.event == 'category') {
       final label = event.data['label'] as String?;
-      setState(() => _detectedCategoryLabel = label);
+      final subcategory = event.data['subcategory'] as String?;
+      setState(() {
+        _detectedCategoryLabel = label;
+        if (_stepNames.isNotEmpty) {
+          _stepMessages[0] = 'Identified: ${label ?? 'Software'}${subcategory != null ? ' · $subcategory' : ''}';
+        }
+      });
     } else if (event.event == 'status') {
       final stepIdx = ((event.data['step'] as int?) ?? 1) - 1;
       final total = (event.data['total'] as int?) ?? 5;

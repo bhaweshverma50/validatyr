@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme/custom_theme.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/providers/theme_provider.dart';
 import '../../shared_widgets/retro_card.dart';
+import '../auth/profile_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -88,8 +90,9 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: RetroTheme.spacingSm),
           GestureDetector(
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Sign in coming soon!')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileScreen()),
               );
             },
             child: RetroCard(
@@ -112,7 +115,7 @@ class SettingsScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Sign In',
+                          'Profile',
                           style: TextStyle(
                             fontSize: RetroTheme.fontLg,
                             fontWeight: FontWeight.w800,
@@ -121,7 +124,7 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Sync settings across devices',
+                          ref.watch(currentUserProvider)?.email ?? '',
                           style: TextStyle(
                             fontSize: RetroTheme.fontSm,
                             color: colors.textMuted,
@@ -130,11 +133,7 @@ class SettingsScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: RetroTheme.badgeDecoration(RetroTheme.yellow),
-                    child: const Text('SOON', style: RetroTheme.badgeStyle),
-                  ),
+                  Icon(LucideIcons.chevronRight, size: 20, color: colors.iconMuted),
                 ],
               ),
             ),
@@ -157,9 +156,17 @@ class SettingsScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                _AboutRow(label: 'App', value: 'Validatyr', colors: colors),
+                Divider(height: 24, color: colors.borderSubtle),
+                _AboutRow(label: 'Description', value: 'AI-Powered Idea Validator', colors: colors),
+                Divider(height: 24, color: colors.borderSubtle),
                 _AboutRow(label: 'Version', value: '1.0.0', colors: colors),
                 Divider(height: 24, color: colors.borderSubtle),
-                _AboutRow(label: 'Built with', value: 'Flutter + Gemini', colors: colors),
+                _AboutRow(label: 'Developer', value: 'Bhawesh Verma', colors: colors),
+                Divider(height: 24, color: colors.borderSubtle),
+                _AboutRow(label: 'Contact', value: 'bhaweshverma50@gmail.com', colors: colors),
+                Divider(height: 24, color: colors.borderSubtle),
+                _AboutRow(label: 'Platform', value: 'iOS · Android · macOS · Web', colors: colors),
               ],
             ),
           ),
