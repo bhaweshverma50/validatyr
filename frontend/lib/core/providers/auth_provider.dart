@@ -65,8 +65,10 @@ class AuthService {
 
     // Mobile: use native Google Sign-In
     const webClientId = '872879151769-aj472qg760uttmctm3rjo0i1i08daad5.apps.googleusercontent.com';
+    const iosClientId = '872879151769-bh9hiebkp92jf5m09las0rlarke2uk40.apps.googleusercontent.com';
 
     final googleSignIn = GoogleSignIn(
+      clientId: defaultTargetPlatform == TargetPlatform.iOS ? iosClientId : null,
       serverClientId: webClientId,
     );
 
