@@ -259,12 +259,18 @@ async def cron_trigger(
         schedule = topic.get("schedule_cron")
 
         # --- Skip inactive or unscheduled topics ---
-        if not topic.get("is_active") or not schedule:
+        if not topic.get("is_active"):
             details.append({
                 "topic_id": topic_id,
                 "action": "skipped",
                 "reason": "inactive",
-                "schedule": schedule,
+            })
+            continue
+        if not schedule:
+            details.append({
+                "topic_id": topic_id,
+                "action": "skipped",
+                "reason": "no_schedule",
             })
             continue
 
@@ -340,7 +346,8 @@ async def cron_trigger(
         })
 
     logger.info(json.dumps({
-        "event": "cron_trigger_completed",
+        "event": "cron_trigger",
+        "timestamp": now_utc.isoformat(),
         "topics_evaluated": len(topics),
         "topics_triggered": len(started),
         "details": details,

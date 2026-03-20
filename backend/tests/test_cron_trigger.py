@@ -122,7 +122,8 @@ class TestCronTriggerStructuredLog:
 
         log_line = _extract_cron_log(caplog)
         assert log_line is not None, f"No structured log found. Records: {[r.message for r in caplog.records]}"
-        assert "event" in log_line
+        assert log_line["event"] == "cron_trigger"
+        assert "timestamp" in log_line
         assert "topics_evaluated" in log_line
         assert "topics_triggered" in log_line
         assert "details" in log_line
@@ -153,6 +154,27 @@ class TestCronTriggerSkipReasons:
         assert detail["topic_id"] == "t1"
         assert detail["action"] == "skipped"
         assert detail["reason"] == "inactive"
+
+    @patch("api.research_routes.os.getenv", return_value=None)
+    @patch("api.research_routes.get_latest_job_for_topic", return_value=None)
+    @patch("api.research_routes.list_research_topics")
+    @patch("asyncio.get_running_loop")
+    async def test_no_schedule_topic_skipped(self, mock_loop, mock_list, mock_job, mock_env, caplog):
+        mock_loop.return_value = _fake_loop()
+        mock_list.return_value = [
+            _make_topic("t1", schedule_cron=None, is_active=True),
+        ]
+
+        with caplog.at_level(logging.INFO, logger="api.research_routes"):
+            result = await cron_trigger()
+
+        assert result["triggered"] == 0
+        log_line = _extract_cron_log(caplog)
+        assert log_line is not None
+        detail = log_line["details"][0]
+        assert detail["topic_id"] == "t1"
+        assert detail["action"] == "skipped"
+        assert detail["reason"] == "no_schedule"
 
     @patch("api.research_routes.os.getenv", return_value=None)
     @patch("api.research_routes.get_latest_job_for_topic")
@@ -272,7 +294,7 @@ def _extract_cron_log(caplog):
     for record in caplog.records:
         try:
             parsed = json.loads(record.message)
-            if parsed.get("event") == "cron_trigger_completed":
+            if parsed.get("event") == "cron_trigger":
                 return parsed
         except (json.JSONDecodeError, TypeError):
             continue
