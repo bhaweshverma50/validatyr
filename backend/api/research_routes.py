@@ -5,9 +5,12 @@ from pydantic import BaseModel, field_validator
 from typing import List, Literal, Optional
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
+import json
 import logging
 import os
 import re
+from zoneinfo import ZoneInfo
+from datetime import datetime, timezone, timedelta
 
 from services.research_models import ResearchTopic, ResearchReport, ResearchJobStatus
 from services.research_db import (
@@ -192,6 +195,40 @@ async def remove_topic(topic_id: str, user_id: str = Depends(get_current_user_id
     return {"deleted": True}
 
 
+def _compute_diff_min(kind: str, parts: list, now_local) -> int | None:
+    """Compute how many minutes now_local is from the scheduled time.
+
+    Returns an int (always >= 0) or None if the topic should not be
+    considered at all (e.g. wrong weekday for a weekly schedule).
+    Never raises.
+    """
+    try:
+        if kind == "daily":
+            target_h, target_m = (int(x) for x in parts[1].split(":")) if len(parts) >= 2 else (6, 0)
+            diff = (now_local.hour * 60 + now_local.minute) - (target_h * 60 + target_m)
+            diff_abs = abs(diff)
+            # Handle midnight wrap-around
+            if diff_abs > 12 * 60:
+                diff_abs = 24 * 60 - diff_abs
+            return diff_abs
+
+        elif kind == "weekly":
+            dow_map = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6}
+            target_dow = dow_map.get(int(parts[1]), 0) if len(parts) >= 2 else 0
+            if now_local.weekday() != target_dow:
+                return None
+            target_h, target_m = (int(x) for x in parts[2].split(":")) if len(parts) >= 3 else (6, 0)
+            diff = (now_local.hour * 60 + now_local.minute) - (target_h * 60 + target_m)
+            diff_abs = abs(diff)
+            if diff_abs > 12 * 60:
+                diff_abs = 24 * 60 - diff_abs
+            return diff_abs
+
+        return None
+    except Exception:
+        return None
+
+
 @router.post("/cron-trigger")
 async def cron_trigger(
     x_cloudscheduler: Optional[str] = Header(None, alias="X-CloudScheduler"),
@@ -210,21 +247,27 @@ async def cron_trigger(
     expected_secret = os.getenv("CRON_TRIGGER_SECRET")
     if expected_secret and x_cron_secret != expected_secret:
         raise HTTPException(status_code=403, detail="Invalid or missing X-Cron-Secret header")
-    from services.research_db import get_latest_job_for_topic
-    from zoneinfo import ZoneInfo
-    from datetime import datetime, timezone, timedelta
 
     topics = list_research_topics(user_id=None)
     started = []
+    details: list[dict] = []
 
     now_utc = datetime.now(timezone.utc)
 
     for topic in topics:
-        if not topic.get("is_active") or not topic.get("schedule_cron"):
+        topic_id = topic.get("id", "unknown")
+        schedule = topic.get("schedule_cron")
+
+        # --- Skip inactive or unscheduled topics ---
+        if not topic.get("is_active") or not schedule:
+            details.append({
+                "topic_id": topic_id,
+                "action": "skipped",
+                "reason": "inactive",
+                "schedule": schedule,
+            })
             continue
 
-        topic_id = topic["id"]
-        schedule = topic["schedule_cron"]
         parts = schedule.split("|")
         kind = parts[0]
 
@@ -235,46 +278,47 @@ async def cron_trigger(
             topic_tz = ZoneInfo("Asia/Kolkata")
         now_local = now_utc.astimezone(topic_tz)
 
-        # --- Cooldown: skip if already ran recently ---
+        # --- Cooldown: prevent double-fire from adjacent cron windows ---
         latest_job = get_latest_job_for_topic(topic_id)
+        last_run_ago_min = None
         if latest_job:
             job_created = latest_job.get("created_at", "") or latest_job.get("started_at", "")
             if job_created:
                 try:
                     created_dt = datetime.fromisoformat(job_created.replace("Z", "+00:00"))
-                    if kind == "daily" and (now_utc - created_dt) < timedelta(hours=23):
-                        continue
-                    if kind == "weekly" and (now_utc - created_dt) < timedelta(days=6):
+                    last_run_ago_min = round((now_utc - created_dt).total_seconds() / 60, 1)
+                    if last_run_ago_min < 30:
+                        details.append({
+                            "topic_id": topic_id,
+                            "action": "skipped",
+                            "reason": "cooldown",
+                            "schedule": schedule,
+                            "last_run_ago_min": last_run_ago_min,
+                        })
                         continue
                 except (ValueError, TypeError):
                     pass
 
-        # --- Time-window match (±8 min — fits within the 15-min poll interval) ---
-        should_run = False
+        # --- Time-window match (±10 min) ---
+        diff_min = _compute_diff_min(kind, parts, now_local)
+        should_run = diff_min is not None and diff_min <= 10
 
-        if kind == "daily":
-            target_h, target_m = (int(x) for x in parts[1].split(":")) if len(parts) >= 2 else (6, 0)
-            diff_min = abs((now_local.hour * 60 + now_local.minute) - (target_h * 60 + target_m))
-            # Handle midnight wrap-around
-            if diff_min > 12 * 60:
-                diff_min = 24 * 60 - diff_min
-            if diff_min <= 8:
-                should_run = True
-
-        elif kind == "weekly":
-            dow_map = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6}
-            target_dow = dow_map.get(int(parts[1]), 0) if len(parts) >= 2 else 0
-            target_h, target_m = (int(x) for x in parts[2].split(":")) if len(parts) >= 3 else (6, 0)
-            if now_local.weekday() == target_dow:
-                diff_min = abs((now_local.hour * 60 + now_local.minute) - (target_h * 60 + target_m))
-                if diff_min > 12 * 60:
-                    diff_min = 24 * 60 - diff_min
-                if diff_min <= 8:
-                    should_run = True
+        # --- Missed-run catch-up: topic within 20 min of schedule with no prior job ---
+        if not should_run and diff_min is not None and diff_min <= 20 and latest_job is None:
+            should_run = True
 
         if not should_run:
+            details.append({
+                "topic_id": topic_id,
+                "action": "skipped",
+                "reason": "outside_window",
+                "schedule": schedule,
+                "diff_min": diff_min,
+                "last_run_ago_min": last_run_ago_min,
+            })
             continue
 
+        # --- Trigger the topic ---
         loop = asyncio.get_running_loop()
         loop.run_in_executor(
             _executor,
@@ -287,6 +331,20 @@ async def cron_trigger(
             ),
         )
         started.append(topic_id)
+        details.append({
+            "topic_id": topic_id,
+            "action": "triggered",
+            "schedule": schedule,
+            "diff_min": diff_min,
+            "last_run_ago_min": last_run_ago_min,
+        })
+
+    logger.info(json.dumps({
+        "event": "cron_trigger_completed",
+        "topics_evaluated": len(topics),
+        "topics_triggered": len(started),
+        "details": details,
+    }))
 
     return {"triggered": len(started), "topic_ids": started}
 
