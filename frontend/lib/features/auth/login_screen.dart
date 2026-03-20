@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/providers/auth_provider.dart';
 import '../../core/theme/custom_theme.dart';
 import '../../shared_widgets/retro_button.dart';
 import '../../shared_widgets/retro_card.dart';
 import 'signup_screen.dart';
+import 'forgot_password_screen.dart';
+
+final _emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -23,12 +27,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   String? _error;
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  String _friendlyError(Object e) {
+    final msg = e.toString();
+    if (msg.contains('Invalid login credentials') || msg.contains('invalid_credentials')) {
+      return 'Incorrect email or password. Please try again.';
+    }
+    if (msg.contains('Email not confirmed') || msg.contains('email_not_confirmed')) {
+      return 'Please confirm your email before signing in. Check your inbox.';
+    }
+    if (msg.contains('rate limit') || msg.contains('over_request_rate_limit') || msg.contains('over_email_send_rate_limit')) {
+      return 'Too many attempts. Please wait a moment and try again.';
+    }
+    if (msg.contains('User not found') || msg.contains('user_not_found')) {
+      return 'No account found with this email. Sign up first.';
+    }
+    if (msg.contains('Network') || msg.contains('SocketException') || msg.contains('Connection')) {
+      return 'Network error. Check your connection and try again.';
+    }
+    if (e is AuthApiException) return e.message;
+    if (e is AuthException) return e.message;
+    if (msg.startsWith('Exception: ')) return msg.substring(11);
+    return 'Something went wrong. Please try again.';
   }
 
   Future<void> _handleSignIn() async {
@@ -42,8 +70,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+    } on AuthException catch (e) {
+      setState(() => _error = _friendlyError(e));
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _friendlyError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -56,8 +86,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     try {
       await AuthService.signInWithGoogle();
+    } on AuthException catch (e) {
+      setState(() => _error = _friendlyError(e));
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _friendlyError(e));
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
     }
@@ -108,6 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
+                            autocorrect: false,
                             decoration: const InputDecoration(
                               labelText: 'EMAIL',
                               prefixIcon: Icon(LucideIcons.mail),
@@ -116,16 +149,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Email is required';
                               }
+                              if (!_emailRegex.hasMatch(value.trim())) {
+                                return 'Enter a valid email address';
+                              }
                               return null;
                             },
                           ),
                           const SizedBox(height: RetroTheme.spacingMd),
                           TextFormField(
                             controller: _passwordController,
-                            obscureText: true,
-                            decoration: const InputDecoration(
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
                               labelText: 'PASSWORD',
-                              prefixIcon: Icon(LucideIcons.lock),
+                              prefixIcon: const Icon(LucideIcons.lock),
+                              suffixIcon: Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                ),
+                              ),
+                              suffixIconConstraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                             ),
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -134,14 +181,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               return null;
                             },
                           ),
+                          const SizedBox(height: RetroTheme.spacingSm),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: GestureDetector(
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (_) => const ForgotPasswordScreen()),
+                                );
+                              },
+                              child: Text(
+                                'Forgot password?',
+                                style: TextStyle(
+                                  color: colors.textMuted,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: RetroTheme.fontSm,
+                                  decoration: TextDecoration.underline,
+                                ),
+                              ),
+                            ),
+                          ),
                           if (_error != null) ...[
                             const SizedBox(height: RetroTheme.spacingMd),
-                            Text(
-                              _error!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                                fontWeight: FontWeight.w600,
-                                fontSize: RetroTheme.fontSm,
+                            Container(
+                              padding: const EdgeInsets.all(RetroTheme.spacingSm),
+                              decoration: BoxDecoration(
+                                color: RetroTheme.pink.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.error.withValues(alpha: 0.4),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(LucideIcons.alertCircle, size: 18, color: Theme.of(context).colorScheme.error),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _error!,
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.error,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: RetroTheme.fontSm,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -187,7 +273,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     onPressed: _handleGoogleSignIn,
                     color: RetroTheme.blue,
                     isLoading: _isGoogleLoading,
-                    icon: const Icon(LucideIcons.chrome),
+                    icon: const Text('G', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
                   ),
                   const SizedBox(height: RetroTheme.spacingXl),
 

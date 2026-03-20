@@ -13,7 +13,6 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = RetroColors.of(context);
-    final textTheme = Theme.of(context).textTheme;
     final user = ref.watch(currentUserProvider);
 
     final email = user?.email ?? '';
@@ -24,6 +23,10 @@ class ProfileScreen extends ConsumerWidget {
         user?.userMetadata?['picture'] as String? ??
         '';
     final provider = user?.appMetadata['provider'] as String? ?? 'email';
+    final createdAt = user?.createdAt;
+    final memberSince = createdAt != null
+        ? _formatDate(DateTime.parse(createdAt))
+        : '';
 
     final displayInitial = fullName.isNotEmpty
         ? fullName[0].toUpperCase()
@@ -38,152 +41,181 @@ class ProfileScreen extends ConsumerWidget {
         title: const Text('PROFILE'),
       ),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(
-              horizontal: RetroTheme.contentPaddingMobile,
-              vertical: RetroTheme.spacingLg,
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
+        child: ListView(
+          padding: const EdgeInsets.symmetric(
+            horizontal: RetroTheme.contentPaddingMobile,
+            vertical: RetroTheme.spacingMd,
+          ),
+          children: [
+            const SizedBox(height: RetroTheme.spacingMd),
+
+            // ── Avatar + Name Header ──
+            Center(
               child: Column(
                 children: [
-                  // Avatar
                   Container(
-                    width: 80,
-                    height: 80,
+                    width: 96,
+                    height: 96,
                     decoration: BoxDecoration(
                       color: RetroTheme.lavender,
                       shape: BoxShape.circle,
-                      border: RetroTheme.borderOf(context),
+                      border: Border.all(color: colors.border, width: 3),
+                      boxShadow: RetroTheme.shadowSmOf(context),
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: avatarUrl.isNotEmpty
                         ? Image.network(
                             avatarUrl,
-                            width: 80,
-                            height: 80,
+                            width: 96,
+                            height: 96,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Center(
-                              child: Text(
-                                displayInitial,
-                                style: const TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ),
+                            errorBuilder: (_, __, ___) => _AvatarInitial(displayInitial),
                           )
-                        : Center(
-                            child: Text(
-                              displayInitial,
-                              style: const TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ),
+                        : _AvatarInitial(displayInitial),
                   ),
-                  const SizedBox(height: RetroTheme.spacingLg),
-
-                  // Info card
-                  RetroCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (fullName.isNotEmpty) ...[
-                          Text(
-                            'NAME',
-                            style: RetroTheme.labelStyle.copyWith(
-                              color: colors.textMuted,
-                            ),
-                          ),
-                          const SizedBox(height: RetroTheme.spacingXs),
-                          Text(
-                            fullName,
-                            style: textTheme.bodyLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: RetroTheme.spacingMd),
-                        ],
-                        Text(
-                          'EMAIL',
-                          style: RetroTheme.labelStyle.copyWith(
-                            color: colors.textMuted,
-                          ),
-                        ),
-                        const SizedBox(height: RetroTheme.spacingXs),
-                        Text(
-                          email,
-                          style: textTheme.bodyLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: RetroTheme.spacingMd),
-                        Text(
-                          'SIGN-IN METHOD',
-                          style: RetroTheme.labelStyle.copyWith(
-                            color: colors.textMuted,
-                          ),
-                        ),
-                        const SizedBox(height: RetroTheme.spacingSm),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: RetroTheme.spacingMd,
-                            vertical: RetroTheme.spacingSm,
-                          ),
-                          decoration: RetroTheme.badgeDecoration(
-                            _providerColor(provider),
-                            borderColor: colors.border,
-                          ),
-                          child: Text(
-                            provider.toUpperCase(),
-                            style: RetroTheme.badgeStyle,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: RetroTheme.spacingLg),
-
-                  // Sign out button
-                  RetroButton(
-                    text: 'Sign Out',
-                    onPressed: () async {
-                      await AuthService.signOut();
-                    },
-                    color: RetroTheme.orange,
-                    icon: const Icon(LucideIcons.logOut),
-                  ),
-                  const SizedBox(height: RetroTheme.spacingLg),
-
-                  // Delete account
-                  GestureDetector(
-                    onTap: () => _showDeleteConfirmation(context),
-                    child: Text(
-                      'Delete Account',
+                  if (fullName.isNotEmpty) ...[
+                    const SizedBox(height: RetroTheme.spacingMd),
+                    Text(
+                      fullName,
                       style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                        fontWeight: FontWeight.w700,
-                        fontSize: RetroTheme.fontMd,
-                        decoration: TextDecoration.underline,
-                        decorationColor: Theme.of(context).colorScheme.error,
+                        fontSize: RetroTheme.fontXl,
+                        fontWeight: FontWeight.w900,
+                        color: colors.text,
+                        letterSpacing: -0.3,
                       ),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(
+                    email,
+                    style: TextStyle(
+                      fontSize: RetroTheme.fontMd,
+                      color: colors.textMuted,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
               ),
             ),
-          ),
+
+            const SizedBox(height: RetroTheme.spacingLg),
+
+            // ── Account Details ──
+            Text(
+              'ACCOUNT',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5,
+                color: colors.textMuted,
+              ),
+            ),
+            const SizedBox(height: RetroTheme.spacingSm),
+            RetroCard(
+              padding: const EdgeInsets.all(0),
+              child: Column(
+                children: [
+                  _ProfileRow(
+                    icon: LucideIcons.mail,
+                    label: 'Email',
+                    value: email,
+                    colors: colors,
+                  ),
+                  Divider(height: 1, color: colors.borderSubtle),
+                  _ProfileRow(
+                    icon: _providerIcon(provider),
+                    label: 'Sign-in method',
+                    value: _providerLabel(provider),
+                    colors: colors,
+                    badge: true,
+                    badgeColor: _providerColor(provider),
+                  ),
+                  if (memberSince.isNotEmpty) ...[
+                    Divider(height: 1, color: colors.borderSubtle),
+                    _ProfileRow(
+                      icon: LucideIcons.calendar,
+                      label: 'Member since',
+                      value: memberSince,
+                      colors: colors,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+
+            const SizedBox(height: RetroTheme.spacingXl),
+
+            // ── Actions ──
+            Text(
+              'ACTIONS',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.5,
+                color: colors.textMuted,
+              ),
+            ),
+            const SizedBox(height: RetroTheme.spacingSm),
+            RetroButton(
+              text: 'Sign Out',
+              onPressed: () async {
+                await AuthService.signOut();
+                if (context.mounted) {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                }
+              },
+              color: RetroTheme.orange,
+              icon: const Icon(LucideIcons.logOut),
+            ),
+            const SizedBox(height: RetroTheme.spacingLg),
+            Center(
+              child: GestureDetector(
+                onTap: () => _showDeleteConfirmation(context),
+                child: Text(
+                  'Delete Account',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontWeight: FontWeight.w700,
+                    fontSize: RetroTheme.fontMd,
+                    decoration: TextDecoration.underline,
+                    decorationColor: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: RetroTheme.spacingXl),
+          ],
         ),
       ),
     );
   }
 
-  Color _providerColor(String provider) {
+  static String _formatDate(DateTime date) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  static IconData _providerIcon(String provider) {
+    switch (provider) {
+      case 'google':
+        return LucideIcons.globe;
+      default:
+        return LucideIcons.keyRound;
+    }
+  }
+
+  static String _providerLabel(String provider) {
+    switch (provider) {
+      case 'google':
+        return 'Google';
+      case 'apple':
+        return 'Apple';
+      default:
+        return 'Email';
+    }
+  }
+
+  static Color _providerColor(String provider) {
     switch (provider) {
       case 'google':
         return RetroTheme.blue;
@@ -197,17 +229,27 @@ class ProfileScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(
-          'DELETE ACCOUNT',
-          style: TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w900,
-            fontSize: RetroTheme.fontXl,
-            color: colors.text,
-          ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(RetroTheme.radiusMd),
+          side: BorderSide(color: colors.border, width: 3),
+        ),
+        title: Row(
+          children: [
+            Icon(LucideIcons.alertTriangle, color: Theme.of(context).colorScheme.error, size: 24),
+            const SizedBox(width: 10),
+            Text(
+              'DELETE ACCOUNT',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.w900,
+                fontSize: RetroTheme.fontLg,
+                color: colors.text,
+              ),
+            ),
+          ],
         ),
         content: Text(
-          'Are you sure you want to delete your account? This action cannot be undone.',
+          'Are you sure? This will permanently delete your account and all your data. This cannot be undone.',
           style: TextStyle(
             fontWeight: FontWeight.w500,
             color: colors.textMuted,
@@ -218,10 +260,7 @@ class ProfileScreen extends ConsumerWidget {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               'CANCEL',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: colors.text,
-              ),
+              style: TextStyle(fontWeight: FontWeight.w800, color: colors.text),
             ),
           ),
           TextButton(
@@ -237,6 +276,91 @@ class ProfileScreen extends ConsumerWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AvatarInitial extends StatelessWidget {
+  final String initial;
+  const _AvatarInitial(this.initial);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        initial,
+        style: const TextStyle(
+          fontSize: 36,
+          fontWeight: FontWeight.w900,
+          color: Colors.black,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final RetroColors colors;
+  final bool badge;
+  final Color? badgeColor;
+
+  const _ProfileRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.colors,
+    this.badge = false,
+    this.badgeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: colors.iconMuted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: RetroTheme.fontMd,
+                fontWeight: FontWeight.w600,
+                color: colors.textMuted,
+              ),
+            ),
+          ),
+          if (badge)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: RetroTheme.badgeDecoration(
+                badgeColor ?? RetroTheme.yellow,
+                borderColor: colors.border,
+              ),
+              child: Text(
+                value.toUpperCase(),
+                style: RetroTheme.badgeStyle,
+              ),
+            )
+          else
+            Flexible(
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontSize: RetroTheme.fontMd,
+                  fontWeight: FontWeight.w700,
+                  color: colors.text,
+                ),
+                textAlign: TextAlign.right,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
         ],
       ),
     );

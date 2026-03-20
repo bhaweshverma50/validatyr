@@ -12,6 +12,7 @@ import 'features/shell/app_shell.dart';
 import 'features/auth/login_screen.dart';
 import 'core/providers/auth_provider.dart';
 import 'services/notification_service.dart';
+import 'features/auth/reset_password_screen.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -65,11 +66,29 @@ Future<void> _initServicesInBackground() async {
   }
 }
 
-class IdeaValidatorApp extends ConsumerWidget {
+class IdeaValidatorApp extends ConsumerStatefulWidget {
   const IdeaValidatorApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<IdeaValidatorApp> createState() => _IdeaValidatorAppState();
+}
+
+class _IdeaValidatorAppState extends ConsumerState<IdeaValidatorApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Listen for PASSWORD_RECOVERY event to show reset password screen
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (data.event == AuthChangeEvent.passwordRecovery) {
+        appNavigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => const ResetPasswordScreen()),
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);
     final authState = ref.watch(authStateProvider);
     return MaterialApp(

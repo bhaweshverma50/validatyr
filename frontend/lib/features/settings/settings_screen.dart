@@ -156,9 +156,17 @@ class SettingsScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                _AboutRow(label: 'App', value: 'Validatyr', colors: colors),
+                Divider(height: 24, color: colors.borderSubtle),
+                _AboutRow(label: 'Description', value: 'AI-Powered Idea Validator', colors: colors),
+                Divider(height: 24, color: colors.borderSubtle),
                 _AboutRow(label: 'Version', value: '1.0.0', colors: colors),
                 Divider(height: 24, color: colors.borderSubtle),
-                _AboutRow(label: 'Built with', value: 'Flutter + Gemini', colors: colors),
+                _AboutRow(label: 'Developer', value: 'Bhawesh Verma', colors: colors),
+                Divider(height: 24, color: colors.borderSubtle),
+                _AboutRow(label: 'Contact', value: 'bhaweshverma50@gmail.com', colors: colors),
+                Divider(height: 24, color: colors.borderSubtle),
+                _AboutRow(label: 'Platform', value: 'iOS · Android · macOS · Web', colors: colors),
               ],
             ),
           ),

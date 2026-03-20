@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Exposes the current Supabase auth state as a stream.
 final authStateProvider = StreamProvider<AuthState>((ref) {
@@ -43,13 +45,29 @@ class AuthService {
   }
 
   /// Google Sign-In -> Supabase auth.
-  static Future<AuthResponse> signInWithGoogle() async {
-    const webClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
-    const iosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
+  /// Uses native flow on mobile, browser-based OAuth on desktop.
+  static Future<AuthResponse?> signInWithGoogle() async {
+    if (defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux) {
+      // Desktop: use Supabase browser-based OAuth via external browser
+      final res = await _client.auth.getOAuthSignInUrl(
+        provider: OAuthProvider.google,
+        redirectTo: 'com.validatyr.frontend://login-callback',
+      );
+      await launchUrl(
+        Uri.parse(res.url!),
+        mode: LaunchMode.externalApplication,
+      );
+      // Session will be picked up via deep link -> onAuthStateChange
+      return null;
+    }
+
+    // Mobile: use native Google Sign-In
+    const webClientId = '872879151769-aj472qg760uttmctm3rjo0i1i08daad5.apps.googleusercontent.com';
 
     final googleSignIn = GoogleSignIn(
-      clientId: iosClientId.isNotEmpty ? iosClientId : null,
-      serverClientId: webClientId.isNotEmpty ? webClientId : null,
+      serverClientId: webClientId,
     );
 
     final googleUser = await googleSignIn.signIn();
