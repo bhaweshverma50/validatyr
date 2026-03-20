@@ -228,6 +228,26 @@ def get_latest_job_for_topic(topic_id: str) -> Optional[dict]:
         return None
 
 
+def list_jobs_for_topic(topic_id: str, limit: int = 10) -> List[dict]:
+    """Fetch recent jobs for a topic, ordered by started_at desc."""
+    supabase = get_supabase()
+    if not supabase:
+        return []
+    try:
+        response = (
+            supabase.table("research_jobs")
+            .select("*")
+            .eq("topic_id", topic_id)
+            .order("started_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return response.data or []
+    except Exception as e:
+        logger.error(f"Error fetching jobs for topic {topic_id}: {e}")
+        return []
+
+
 def get_research_job(job_id: str) -> Optional[dict]:
     """Fetch a research job by ID."""
     supabase = get_supabase()

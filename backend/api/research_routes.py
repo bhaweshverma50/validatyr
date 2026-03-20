@@ -23,6 +23,7 @@ from services.research_db import (
     get_research_report,
     get_research_job,
     get_latest_job_for_topic,
+    list_jobs_for_topic,
 )
 from services.research_pipeline import run_research_pipeline
 from services.auth import get_current_user_id
@@ -415,6 +416,12 @@ async def cancel_research_job(job_id: str, user_id: str = Depends(get_current_us
 async def get_latest_job(topic_id: str, user_id: str = Depends(get_current_user_id)):
     job = get_latest_job_for_topic(topic_id)
     return {"job": job}
+
+
+@router.get("/topics/{topic_id}/jobs")
+async def get_topic_jobs(topic_id: str, limit: int = 10, user_id: str = Depends(get_current_user_id)):
+    jobs = list_jobs_for_topic(topic_id, limit=limit)
+    return {"jobs": jobs}
 
 
 @router.get("/reports")
