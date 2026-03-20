@@ -6,13 +6,16 @@ import '../../shared_widgets/retro_button.dart';
 import '../../services/research_api_service.dart';
 
 class NewTopicScreen extends StatefulWidget {
-  const NewTopicScreen({super.key});
+  final Map<String, dynamic>? topic;
+  const NewTopicScreen({super.key, this.topic});
 
   @override
   State<NewTopicScreen> createState() => _NewTopicScreenState();
 }
 
 class _NewTopicScreenState extends State<NewTopicScreen> {
+  bool get _isEditing => widget.topic != null;
+
   String _selectedDomain = 'apps';
   final _keywordsController = TextEditingController();
   final _interestsController = TextEditingController();
@@ -38,6 +41,32 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
     (id: 'fintech', label: 'FinTech', icon: LucideIcons.wallet, color: RetroTheme.mint),
     (id: 'general', label: 'General', icon: LucideIcons.search, color: RetroTheme.lavender),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditing) {
+      final t = widget.topic!;
+      _selectedDomain = t['domain'] as String? ?? 'apps';
+      _keywordsController.text = (List<String>.from(t['keywords'] ?? [])).join(', ');
+      _interestsController.text = (List<String>.from(t['interests'] ?? [])).join(', ');
+      final cron = t['schedule_cron'] as String?;
+      if (cron != null && cron.isNotEmpty) {
+        final parts = cron.split('|');
+        _schedule = parts[0]; // 'daily' or 'weekly'
+        if (parts[0] == 'weekly' && parts.length >= 2) {
+          _weekday = int.tryParse(parts[1]) ?? 1;
+        }
+        final timePart = parts.lastWhere((p) => p.contains(':'), orElse: () => '');
+        if (timePart.isNotEmpty) {
+          final tp = timePart.split(':');
+          _scheduleTime = TimeOfDay(hour: int.parse(tp[0]), minute: int.parse(tp[1]));
+        }
+      } else {
+        _schedule = 'manual';
+      }
+    }
+  }
 
   Future<void> _submit() async {
     final keywords = _keywordsController.text
@@ -67,21 +96,37 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
     }
 
     try {
-      final runNow = _schedule == 'manual';
-      await ResearchApiService.createTopic(
-        domain: _selectedDomain,
-        keywords: keywords,
-        interests: interests,
-        scheduleCron: scheduleCron,
-        startImmediately: runNow,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(runNow
-              ? 'Topic created — research starting now!'
-              : 'Topic created — will run at scheduled time.')),
+      if (_isEditing) {
+        final topicId = widget.topic!['id']?.toString() ?? '';
+        await ResearchApiService.updateTopic(topicId, {
+          'domain': _selectedDomain,
+          'keywords': keywords,
+          'interests': interests,
+          'schedule_cron': scheduleCron,
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Topic updated!')),
+          );
+          Navigator.pop(context, true);
+        }
+      } else {
+        final runNow = _schedule == 'manual';
+        await ResearchApiService.createTopic(
+          domain: _selectedDomain,
+          keywords: keywords,
+          interests: interests,
+          scheduleCron: scheduleCron,
+          startImmediately: runNow,
         );
-        Navigator.pop(context, true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(runNow
+                ? 'Topic created — research starting now!'
+                : 'Topic created — will run at scheduled time.')),
+          );
+          Navigator.pop(context, true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -104,9 +149,9 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
-        title: const Text(
-          'NEW RESEARCH TOPIC',
-          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: RetroTheme.fontXl),
+        title: Text(
+          _isEditing ? 'EDIT TOPIC' : 'NEW RESEARCH TOPIC',
+          style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w900, fontSize: RetroTheme.fontXl),
         ),
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
@@ -285,8 +330,8 @@ class _NewTopicScreenState extends State<NewTopicScreen> {
             const SizedBox(height: RetroTheme.spacingXl),
 
             RetroButton(
-              text: _schedule == 'manual' ? 'CREATE & RUN' : 'CREATE TOPIC',
-              icon: Icon(_schedule == 'manual' ? LucideIcons.play : LucideIcons.plus, size: 18),
+              text: _isEditing ? 'SAVE CHANGES' : (_schedule == 'manual' ? 'CREATE & RUN' : 'CREATE TOPIC'),
+              icon: Icon(_isEditing ? LucideIcons.save : (_schedule == 'manual' ? LucideIcons.play : LucideIcons.plus), size: 18),
               onPressed: _submit,
               isLoading: _isSubmitting,
               color: RetroTheme.lavender,

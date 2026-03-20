@@ -286,6 +286,14 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
     }
   }
 
+  void _editTopic(Map<String, dynamic> topic) async {
+    final updated = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => NewTopicScreen(topic: topic)),
+    );
+    if (updated == true) _loadTopics();
+  }
+
   Future<void> _deleteTopic(Map<String, dynamic> topic) async {
     final topicId = topic['id']?.toString() ?? '';
     final domain = topic['domain'] as String? ?? 'general';
@@ -454,6 +462,9 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
           case 'toggle':
             _toggleActive(topic);
             break;
+          case 'edit':
+            _editTopic(topic);
+            break;
           case 'delete':
             _deleteTopic(topic);
             break;
@@ -485,6 +496,16 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
               ],
             ),
           ),
+        const PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(LucideIcons.pencil, size: 16),
+              SizedBox(width: 8),
+              Text('Edit topic', style: TextStyle(fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
         const PopupMenuItem(
           value: 'delete',
           child: Row(

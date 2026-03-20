@@ -6,6 +6,7 @@ import '../../shared_widgets/retro_button.dart';
 import '../../core/utils.dart';
 import '../../services/research_api_service.dart';
 import 'report_detail_screen.dart';
+import 'new_topic_screen.dart';
 
 class TopicChannelScreen extends StatefulWidget {
   final Map<String, dynamic> topic;
@@ -175,6 +176,20 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
                 ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: colors.text))
                 : const Icon(LucideIcons.refreshCw),
             onPressed: _isRefreshing ? null : _triggerResearch,
+          ),
+          // Edit topic
+          IconButton(
+            icon: const Icon(LucideIcons.pencil, size: 20),
+            tooltip: 'Edit topic',
+            onPressed: () async {
+              final updated = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(builder: (_) => NewTopicScreen(topic: widget.topic)),
+              );
+              if (updated == true && mounted) {
+                Navigator.pop(context);
+              }
+            },
           ),
           // Delete topic
           IconButton(
