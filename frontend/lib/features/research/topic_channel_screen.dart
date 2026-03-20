@@ -22,6 +22,8 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
   bool _isRefreshing = false;
   String? _errorMessage;
   Map<String, dynamic>? _latestJob;
+  List<Map<String, dynamic>> _jobHistory = [];
+  bool _historyExpanded = false;
 
   String get _topicId => widget.topic['id']?.toString() ?? '';
   String get _domain => widget.topic['domain']?.toString() ?? 'general';
@@ -37,6 +39,7 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
     super.initState();
     _loadReports();
     _loadLatestJob();
+    _loadJobHistory();
   }
 
   Future<void> _loadReports() async {
@@ -52,6 +55,13 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
     try {
       final job = await ResearchApiService.getLatestJob(_topicId);
       if (mounted) setState(() => _latestJob = job);
+    } catch (_) {}
+  }
+
+  Future<void> _loadJobHistory() async {
+    try {
+      final jobs = await ResearchApiService.getJobHistory(_topicId);
+      if (mounted) setState(() => _jobHistory = jobs);
     } catch (_) {}
   }
 
@@ -252,17 +262,138 @@ class _TopicChannelScreenState extends State<TopicChannelScreen> {
 
     return RefreshIndicator(
       color: colors.text,
-      onRefresh: _loadReports,
-      child: ListView.separated(
+      onRefresh: () async {
+        await Future.wait([_loadReports(), _loadJobHistory()]);
+      },
+      child: ListView.builder(
         padding: const EdgeInsets.symmetric(
           horizontal: RetroTheme.contentPaddingMobile,
           vertical: RetroTheme.spacingMd,
         ),
-        itemCount: _reports.length,
-        separatorBuilder: (_, __) => const SizedBox(height: RetroTheme.spacingMd),
-        itemBuilder: (context, index) => _buildReportCard(_reports[index]),
+        itemCount: _reports.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) return _buildRunHistory();
+          return Padding(
+            padding: const EdgeInsets.only(bottom: RetroTheme.spacingMd),
+            child: _buildReportCard(_reports[index - 1]),
+          );
+        },
       ),
     );
+  }
+
+  Widget _buildRunHistory() {
+    if (_jobHistory.isEmpty) return const SizedBox.shrink();
+    final colors = RetroColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: RetroTheme.spacingMd),
+      child: RetroCard(
+        padding: const EdgeInsets.all(RetroTheme.spacingSm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onTap: () => setState(() => _historyExpanded = !_historyExpanded),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.history, size: 16, color: colors.iconMuted),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text('Run History', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.w700, fontSize: 14)),
+                  ),
+                  Text('${_jobHistory.length} runs', style: TextStyle(fontSize: RetroTheme.fontSm, color: colors.textMuted)),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _historyExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                    size: 16, color: colors.iconMuted,
+                  ),
+                ],
+              ),
+            ),
+            if (_historyExpanded) ...[
+              const SizedBox(height: RetroTheme.spacingSm),
+              ...(_jobHistory.take(10).map(_buildJobRow)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJobRow(Map<String, dynamic> job) {
+    final colors = RetroColors.of(context);
+    final status = job['status'] as String? ?? 'unknown';
+    final startedAt = job['started_at']?.toString() ?? '';
+    final step = job['current_step'] as String? ?? '';
+    final error = job['error'] as String? ?? '';
+
+    IconData icon;
+    Color iconColor;
+    switch (status) {
+      case 'completed':
+        icon = LucideIcons.checkCircle;
+        iconColor = RetroTheme.mint;
+        break;
+      case 'failed':
+        icon = LucideIcons.xCircle;
+        iconColor = RetroTheme.pink;
+        break;
+      case 'cancelled':
+        icon = LucideIcons.minusCircle;
+        iconColor = RetroTheme.orange;
+        break;
+      case 'running':
+      case 'pending':
+        icon = LucideIcons.loader;
+        iconColor = RetroTheme.blue;
+        break;
+      default:
+        icon = LucideIcons.helpCircle;
+        iconColor = colors.iconMuted;
+    }
+
+    String subtitle = status;
+    if (status == 'running' && step.isNotEmpty) subtitle = step.replaceAll('_', ' ');
+    if (status == 'failed' && error.isNotEmpty) {
+      subtitle = error.length > 50 ? '${error.substring(0, 50)}...' : error;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: iconColor),
+          const SizedBox(width: 8),
+          if (startedAt.isNotEmpty)
+            Text(
+              _formatJobTime(startedAt),
+              style: TextStyle(fontSize: RetroTheme.fontXs, color: colors.textMuted, fontWeight: FontWeight.w600),
+            ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              subtitle,
+              style: TextStyle(fontSize: RetroTheme.fontXs, color: colors.textSubtle),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatJobTime(String iso) {
+    try {
+      final dt = DateTime.parse(iso).toLocal();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
+      final amPm = dt.hour < 12 ? 'AM' : 'PM';
+      return '${months[dt.month - 1]} ${dt.day}, $h:$m $amPm';
+    } catch (_) {
+      return '';
+    }
   }
 
   Widget _buildReportCard(Map<String, dynamic> report) {

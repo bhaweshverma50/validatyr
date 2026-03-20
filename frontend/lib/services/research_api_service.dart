@@ -109,6 +109,16 @@ class ResearchApiService {
     return data['job'] as Map<String, dynamic>?;
   }
 
+  static Future<List<Map<String, dynamic>>> getJobHistory(String topicId, {int limit = 10}) async {
+    final response = await http.get(
+      Uri.parse('$_baseUrl/topics/$topicId/jobs?limit=$limit'),
+      headers: _headers,
+    );
+    if (response.statusCode != 200) return [];
+    final data = jsonDecode(response.body);
+    return List<Map<String, dynamic>>.from(data['jobs'] ?? []);
+  }
+
   static Future<Map<String, dynamic>?> getJobStatus(String jobId) async {
     final response = await http.get(Uri.parse('$_baseUrl/status/$jobId'), headers: _headers);
     if (response.statusCode != 200) return null;
