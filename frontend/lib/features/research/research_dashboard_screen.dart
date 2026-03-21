@@ -127,10 +127,12 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
         final h = int.parse(timeParts[0]);
         final m = int.parse(timeParts[1]);
         var next = DateTime(now.year, now.month, now.day, h, m);
-        // If already ran today, next run is tomorrow
-        final alreadyRanToday = lastRunAt != null &&
-            lastRunAt.year == now.year && lastRunAt.month == now.month && lastRunAt.day == now.day;
-        if (next.isBefore(now) || alreadyRanToday) next = next.add(const Duration(days: 1));
+        // Only count as "already ran" if the job ran near the scheduled time (±15 min)
+        // so manual runs don't consume the scheduled slot
+        final scheduledRanToday = lastRunAt != null &&
+            lastRunAt.year == now.year && lastRunAt.month == now.month && lastRunAt.day == now.day &&
+            (lastRunAt.hour * 60 + lastRunAt.minute - (h * 60 + m)).abs() <= 15;
+        if (next.isBefore(now) || scheduledRanToday) next = next.add(const Duration(days: 1));
         return _fmtNextRun(next);
       }
 
@@ -140,11 +142,12 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
         final h = int.parse(timeParts[0]);
         final m = int.parse(timeParts[1]);
         var next = DateTime(now.year, now.month, now.day, h, m);
-        // If already ran this week on the target day, advance to next week
-        final alreadyRanThisWeek = lastRunAt != null &&
+        // Only count as "already ran" if the job ran near the scheduled time
+        final scheduledRanThisWeek = lastRunAt != null &&
             now.difference(lastRunAt).inDays < 7 &&
-            lastRunAt.weekday == targetDow;
-        while (next.weekday != targetDow || next.isBefore(now) || (alreadyRanThisWeek && next.day == now.day)) {
+            lastRunAt.weekday == targetDow &&
+            (lastRunAt.hour * 60 + lastRunAt.minute - (h * 60 + m)).abs() <= 15;
+        while (next.weekday != targetDow || next.isBefore(now) || (scheduledRanThisWeek && next.day == now.day)) {
           next = next.add(const Duration(days: 1));
         }
         return _fmtNextRun(next);
