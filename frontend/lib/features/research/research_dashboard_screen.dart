@@ -162,11 +162,15 @@ class _ResearchDashboardScreenState extends State<ResearchDashboardScreen> {
     final amPm = dt.hour < 12 ? 'AM' : 'PM';
     final timeStr = '$hour:$min $amPm';
 
-    if (diff.inHours < 24) {
-      if (diff.inHours < 1) return 'Next: in ${diff.inMinutes}m';
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDay = DateTime(dt.year, dt.month, dt.day);
+    final daysDiff = targetDay.difference(today).inDays;
+
+    if (daysDiff == 0) {
+      if (diff.inMinutes <= 60) return 'Next: in ${diff.inMinutes}m';
       return 'Next: today $timeStr';
     }
-    if (diff.inHours < 48) return 'Next: tomorrow $timeStr';
+    if (daysDiff == 1) return 'Next: tomorrow $timeStr';
     return 'Next: ${months[dt.month - 1]} ${dt.day} $timeStr';
   }
 
